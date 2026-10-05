@@ -3,7 +3,7 @@
 
 /* ---------------- Réglages ---------------- */
 const RANGES = [
-  ["focus", "Durée du travail", 5, 90, 1, v => v + " min"],
+  ["focus", "Durée du travail", 5, 180, 1, v => v + " min"],
   ["short", "Pause courte", 1, 30, 1, v => v + " min"],
   ["long", "Pause longue", 5, 60, 1, v => v + " min"],
   ["every", "Sessions avant la pause longue", 2, 8, 1, v => v],

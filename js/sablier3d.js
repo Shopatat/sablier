@@ -321,29 +321,38 @@ function heapParts(frac){
    serrés au départ et un peu dispersés à l'arrivée, avec quelques rebonds sur le tas.
    Tout se calcule à partir de l'heure : rien à retenir d'une image à l'autre. */
 const rnd = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+/* Débit du filet selon la durée réglée : plus la session est courte, plus le sable coule fort.
+   Échelle logarithmique bornée entre 1 min (1 : filet épais) et 180 min (0 : filet très fin mais
+   toujours visible), pour que ça reste crédible quelle que soit la durée. 25 min ≈ 0,38. */
+const FLOW_MIN = 1, FLOW_MAX = 180;
+function flowLevel(){
+  const m = Math.min(FLOW_MAX, Math.max(FLOW_MIN, total(st.mode) / 60000));
+  return 1 - Math.log(m / FLOW_MIN) / Math.log(FLOW_MAX / FLOW_MIN);
+}
 function drawStream(apexY, now){
   if (streamA < .02) return;
   const L = apexY - 1; if (L < 3) return;
   const { S, H } = G, c = `rgba(${GRAINRGB},`, at = p => proj(T(p));
   const k = PERSP / (PERSP - T([0, L / 2, 0])[2]), p0 = at([0, 0, 0]), p1 = at([0, L, 0]);
-  const fall = 520 * Math.sqrt(L / H), N = 110;           // durée de la chute (ms), nombre de grains en l'air
+  const lv = flowLevel(), fall = 520 * Math.sqrt(L / H);  // débit (0 → 1), durée de la chute (ms)
+  const N = Math.round(30 + 210 * lv), spread = .006 + .03 * lv; // grains en l'air, largeur du filet en bas
   ctx.save(); ctx.globalAlpha = streamA; ctx.lineCap = "round";
   // cœur du filet : très fin, plus dense en haut
   const g = ctx.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
-  g.addColorStop(0, c + ".85)"); g.addColorStop(.35, c + ".45)"); g.addColorStop(1, c + ".12)");
-  ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.strokeStyle = g; ctx.lineWidth = .9 * k; ctx.stroke();
+  g.addColorStop(0, c + (.55 + .4 * lv).toFixed(2) + ")"); g.addColorStop(.35, c + (.25 + .35 * lv).toFixed(2) + ")"); g.addColorStop(1, c + ".12)");
+  ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.strokeStyle = g; ctx.lineWidth = (.4 + 1.3 * lv) * k; ctx.stroke();
   // grains : chacun laisse une petite traînée proportionnelle à sa vitesse
   const paths = [new Path2D(), new Path2D(), new Path2D()];
   for (let i = 0; i < N; i++){
     const u = now / fall + i / N, cyc = Math.floor(u), p = u - cyc, seed = i * 7919 + cyc * 104729;
-    const y = L * p * p, r = S * (.003 + .016 * rnd(seed)) * Math.pow(p, 1.6), an = rnd(seed + 1) * TAU;
+    const y = L * p * p, r = S * spread * (.15 + .85 * rnd(seed)) * Math.pow(p, 1.6), an = rnd(seed + 1) * TAU;
     const x = r * Math.cos(an), z = r * Math.sin(an), q = at([x, y, z]), tail = Math.max(.6, 2 * L * p * 16 / fall);
     const qt = at([x, Math.max(0, y - tail), z]);
     const P = paths[(rnd(seed + 2) * 3) | 0]; P.moveTo(qt[0], qt[1]); P.lineTo(q[0], q[1]);
   }
-  ["1", ".7", ".45"].forEach((al, j) => { ctx.strokeStyle = c + al + ")"; ctx.lineWidth = (1.25 - j * .2) * k; ctx.stroke(paths[j]); });
+  ["1", ".7", ".45"].forEach((al, j) => { ctx.strokeStyle = c + al + ")"; ctx.lineWidth = (1.05 + .5 * lv - j * .2) * k; ctx.stroke(paths[j]); });
   // rebonds sur le tas
-  const B = 14, life = 380;
+  const B = Math.round(4 + 26 * lv), life = 380;
   ctx.fillStyle = c + ".8)";
   for (let i = 0; i < B; i++){
     const u = now / life + i / B, cyc = Math.floor(u), q = u - cyc, seed = i * 2731 + cyc * 7193;
