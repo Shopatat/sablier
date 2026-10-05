@@ -3,6 +3,8 @@
 
 /* ---------------- Son (synthétisé) ---------------- */
 let ac = null, master = null, amb = null;
+// iPhone : le son peut se couper quand l'appli passe en arrière-plan ; chaque toucher le relance.
+document.addEventListener("pointerdown", () => { if (ac && ac.state !== "running") ensureAudio(); }, true);
 function ensureAudio(){
   try{
     if (!ac){ ac = new (window.AudioContext || window.webkitAudioContext)(); master = ac.createGain(); master.connect(ac.destination); }

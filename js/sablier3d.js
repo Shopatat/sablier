@@ -53,7 +53,10 @@ function engrave(c, d, l, x, y, w, h, off, a){
 const cvs = $("#hg"), ctx = cvs.getContext("2d"), scene = $("#scene"), app = $("#app");
 const DEG = Math.PI / 180, K = Math.tan(32 * DEG), CN = 32, PERSP = 1100, TAU = 2 * Math.PI;
 let G = null, MODEL = null, CW = 0, CH = 0, DPR = 1, strip = null, panel = null, grain = null;
-let sandFrac = 1, flipT0 = 0, flipDir = 1, streamA = 0;
+let sandFrac = 1, flipT0 = 0, flipDir = 1;
+// Filet : il coule depuis flowT0 ; s'il est coupé (pause, fin), il s'est arrêté à flowT1.
+// airMs : durée d'écoulement du sable encore en l'air (il n'est pas encore arrivé dans le tas).
+let flowOn = false, flowT0 = -1e9, flowT1 = -1e9, airMs = 0;
 
 function build(){
   const r = scene.getBoundingClientRect();
@@ -287,8 +290,9 @@ function drawGlass(gl, front){
    Le dessus reste plat, comme dans le jeu. */
 function drawTopSand(){
   const frac = sandFrac;
-  if (frac < .002) return;
-  const { S, H } = G, y = -frac * H, hw = .925 * S / 2 * frac;
+  const lv = topLevel(frac), { S, H } = G;
+  if (lv * H < .3) return; // moins d'un tiers de pixel : il n'y a plus rien à voir
+  const y = -lv * H, hw = .925 * S / 2 * lv;
   drawSand(pyrFaces(y, hw, "sand"));
   const top = prep(face([[-hw, y, -hw], [hw, y, -hw], [hw, y, hw], [-hw, y, hw]], [0, 0, 0], "sand"));
   if (!top.front) return;
@@ -297,9 +301,10 @@ function drawTopSand(){
 }
 /* Sable du bas : un cône qui grossit, puis le fond qui se remplit avec un dôme dessus */
 function heapParts(frac){
-  if (frac > .999) return { fr:[], cone:[], cap:null, apex:G.H };
-  // En haut il reste frac³ du sable (pyramide de hauteur frac) : tout le reste est en bas.
-  const { S, H } = G, Sb = .925 * S, shp = heap(1 - frac * frac * frac);
+  // Le sable encore en l'air n'est pas arrivé : on compte le tas comme il était il y a une chute.
+  const landed = Math.min(1, frac + airMs / sessionLen()), b = 1 - sandLeft(landed);
+  if (b <= 0) return { fr:[], cone:[], cap:null, apex:G.H };
+  const { S, H } = G, Sb = .925 * S, shp = heap(b);
   const f = shp.y / (H / Sb), yl = H - f * H, hb = Sb / 2, ht = hb * (1 - f);
   const fr = []; let cap = null;
   if (f > .002){
@@ -323,29 +328,38 @@ function heapParts(frac){
    serrés au départ et un peu dispersés à l'arrivée, avec quelques rebonds sur le tas.
    Tout se calcule à partir de l'heure : rien à retenir d'une image à l'autre. */
 const rnd = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-/* Débit réel du sablier, en px³ par ms. Le niveau du haut baisse à vitesse constante :
-   il reste r³ du sable, il en part donc 3·r²·(volume d'une ampoule)/(durée) chaque milliseconde.
-   Le filet est plus fourni en début de session, quand il y a encore beaucoup de sable en haut,
-   et s'amenuise à la fin, jusqu'aux derniers grains. */
+/* Deux façons de couler (réglage « Écoulement »), r étant la part du temps qui reste :
+   - régulière : le niveau du haut baisse à vitesse constante (hauteur r, il reste r³ du sable).
+     Le haut est large au début : il en coule beaucoup, puis de moins en moins.
+   - réaliste : comme un vrai sablier, le débit est constant (il reste r du sable, hauteur ∛r) :
+     le niveau baisse doucement, puis de plus en plus vite à la fin.
+   Dans les deux cas le sable est conservé : le tas du bas contient exactement ce qui est parti du haut. */
+const realFlow = () => cfg.flow === "reel";
+const topLevel = r => realFlow() ? Math.cbrt(r) : r;
+const sandLeft = r => realFlow() ? r : r * r * r;
 const FALL = 260; // durée de chute du goulot jusqu'au fond (ms)
-function flowNow(){
+function flowNow(){ // débit en px³ par ms
   const r = sandFrac, Vc = Math.pow(.925 * G.S, 2) * G.H / 3;
-  return 3 * r * r * Vc / total(st.mode);
+  return (realFlow() ? 1 : 3 * r * r) * Vc / sessionLen();
 }
 function drawStream(apexY, now){
-  if (streamA < .02) return;
   const L = apexY - 1; if (L < 3) return;
   const { S, H } = G, c = `rgba(${GRAINRGB},`, at = p => proj(T(p));
-  const k = PERSP / (PERSP - T([0, L / 2, 0])[2]), p0 = at([0, 0, 0]), p1 = at([0, L, 0]);
   const fall = FALL * Math.sqrt(L / H);              // chute libre : y = L·(t/fall)²
+  // Tête du filet (elle descend en accélérant quand ça se met à couler) et queue (elle quitte
+  // le goulot quand ça s'arrête), en part de la chute : 0 au goulot, 1 en bas.
+  const pHead = Math.min(1, (now - flowT0) / fall), pTail = flowOn ? 0 : Math.min(1, Math.max(0, (now - flowT1) / fall));
+  if (pHead <= pTail) return;
+  const yHead = L * pHead * pHead, yTail = L * pTail * pTail;
+  const k = PERSP / (PERSP - T([0, L / 2, 0])[2]), p0 = at([0, yTail, 0]), p1 = at([0, yHead, 0]);
   const q = flowNow(), vMid = Math.SQRT2 * L / fall; // débit, vitesse à mi-hauteur
   // Largeur du filet : section = débit / vitesse. Plafonnée pour les sessions très courtes.
   const w = Math.min(2 * Math.sqrt(q / vMid / Math.PI), .02 * S);
   // Grains en l'air : le sable qui tombe pendant une chute, en grains d'environ 0,35 px³.
   const NMAX = 260, keep = Math.min(1, q * fall / .35 / NMAX);
-  ctx.save(); ctx.globalAlpha = streamA; ctx.lineCap = "round";
+  ctx.save(); ctx.lineCap = "round";
   // corps du filet, ombré comme un petit cylindre (seulement s'il est assez épais pour se voir en continu)
-  if (w > .5){
+  if (w > .5 && yHead - yTail > 1){
     const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l, hw = w * k / 2;
     const g = ctx.createLinearGradient(p0[0] - nx * hw, p0[1] - ny * hw, p0[0] + nx * hw, p0[1] + ny * hw), a = Math.min(1, (w - .5) / 1.2);
     g.addColorStop(0, c + (.25 * a).toFixed(3) + ")"); g.addColorStop(.45, c + (.9 * a).toFixed(3) + ")"); g.addColorStop(1, c + (.3 * a).toFixed(3) + ")");
@@ -358,7 +372,7 @@ function drawStream(apexY, now){
   const paths = [new Path2D(), new Path2D(), new Path2D()];
   for (let i = 0; i < NMAX; i++){
     const u = now / fall + i / NMAX, cyc = Math.floor(u), p = u - cyc, seed = i * 7919 + cyc * 104729;
-    if (rnd(seed + 3) >= keep) continue;
+    if (rnd(seed + 3) >= keep || p > pHead || p < pTail) continue;
     const y = L * p * p, r = (w / 2) * Math.sqrt(rnd(seed)) + S * .004 * rnd(seed + 4) * p * p, an = rnd(seed + 1) * TAU;
     const x = r * Math.cos(an), z = r * Math.sin(an), qd = at([x, y, z]), tail = Math.max(.4, 2 * L * p * 12 / fall); // traînée = vitesse × 12 ms
     const qt = at([x, Math.max(0, y - tail), z]);
@@ -366,13 +380,13 @@ function drawStream(apexY, now){
   }
   ["1", ".75", ".5"].forEach((al, j) => { ctx.strokeStyle = c + al + ")"; ctx.lineWidth = (.95 - j * .15) * k; ctx.stroke(paths[j]); });
   // rebonds sur le tas, en nombre proportionnel au débit
-  const B = Math.min(24, Math.round(q * 6)), life = 320;
+  const B = pHead < 1 || pTail >= 1 ? 0 : Math.min(24, Math.round(q * 6)), life = 320; // seulement quand le filet touche le tas
   ctx.fillStyle = c + ".85)";
   for (let i = 0; i < B; i++){
     const u = now / life + i / B, cyc = Math.floor(u), t = u - cyc, seed = i * 2731 + cyc * 7193;
     const an = rnd(seed) * TAU, d = (w / 2 + S * (.006 + .02 * rnd(seed + 1))) * t, hgt = S * (.004 + .01 * rnd(seed + 2));
     const pt = at([d * Math.cos(an), L - hgt * Math.sin(t * Math.PI) + d * K * .6, d * Math.sin(an)]);
-    ctx.globalAlpha = streamA * (1 - t); ctx.fillRect(pt[0] - .5 * k, pt[1] - .5 * k, k, k);
+    ctx.globalAlpha = 1 - t; ctx.fillRect(pt[0] - .5 * k, pt[1] - .5 * k, k, k);
   }
   ctx.restore();
 }
@@ -438,8 +452,11 @@ function render3d(now){
   eye = [vx - ox, vy - oy, PERSP];
   proj = p => { const k = PERSP / (PERSP - p[2]); return [vx + (ox + p[0] - vx) * k, vy + (oy + p[1] - vy) * k]; };
 
-  const target = (st.running && !turning && sandFrac > .001) ? 1 : 0;
-  streamA += (target - streamA) * .12;
+  const want = st.running && !turning && sandFrac > 0;
+  if (want && !flowOn){ flowOn = true; flowT0 = now; }
+  else if (!want && flowOn){ flowOn = false; flowT1 = now; }
+  if (turning) flowT1 = flowT0 = -1e9; // on retourne le sablier : plus de filet
+  airMs = flowOn ? Math.min(now - flowT0, FALL) : Math.max(0, Math.min(FALL - (now - flowT1), flowT1 - flowT0));
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, CW, CH);
   const eyeM = [dot(ex, eye), dot(ey, eye), dot(ez, eye)]; // l'œil dans le repère du sablier

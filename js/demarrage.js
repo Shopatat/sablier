@@ -12,9 +12,18 @@ function fitStandalone(){
 }
 fitStandalone();
 let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { fitStandalone(); build(); sizeDust(); }, 120); });
+// La zone du sablier change aussi de taille sans que la fenêtre bouge (minuteur affiché ou non,
+// appli ouverte en arrière-plan puis affichée) : on la surveille directement.
+if ("ResizeObserver" in window){
+  let lastW = 0, lastH = 0;
+  new ResizeObserver(([e]) => {
+    const { width, height } = e.contentRect;
+    if (Math.abs(width - lastW) > .5 || Math.abs(height - lastH) > .5){ lastW = width; lastH = height; build(); }
+  }).observe(scene);
+}
 applySand(); applyTimeVis(); sizeDust(); renderStats(); render();
 if (st.running){
-  if (st.endAt <= Date.now()) { st.running = false; finish(false); }
+  if (st.endAt <= Date.now()) finish(true, true); // finie appli fermée : comptée, sans gong en retard
   else { app.classList.remove("idle"); wakeOn(); }
 }
 requestAnimationFrame(loop); requestAnimationFrame(ambientLoop);

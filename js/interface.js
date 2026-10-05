@@ -17,9 +17,9 @@ RANGES.forEach(([k, label, min, max, step, show]) => {
   const paint = () => { out.textContent = show(+inp.value); inp.style.setProperty("--p", ((inp.value - min) / (max - min) * 100) + "%"); };
   inp.value = cfg[k]; paint();
   inp.addEventListener("input", () => {
-    const old = total(st.mode);
     cfg[k] = +inp.value; paint(); saveCfg();
-    if (k === st.mode && !st.running && st.remaining >= old - 1) { st.remaining = total(st.mode); saveState(); draw(true); }
+    // sablier pas encore lancé : il prend la nouvelle durée ; session entamée : elle garde la sienne
+    if (k === st.mode && !st.running && st.remaining >= st.len - 1){ st.len = total(st.mode); st.remaining = st.len; saveState(); draw(true); }
     if (k === "every") { st.done = Math.min(st.done, cfg.every); saveState(); }
     render();
   });
@@ -34,6 +34,18 @@ RANGES.forEach(([k, label, min, max, step, show]) => {
   });
 });
 document.querySelectorAll(".sandpick").forEach(b => b.addEventListener("click", () => { cfg.sandColor = b.dataset.c; saveCfg(); applySand(); }));
+/* Écoulement régulier (le niveau baisse à vitesse constante) ou réaliste (débit constant, comme un vrai sablier) */
+const FLOW_HINTS = {
+  regulier:"Le niveau baisse à vitesse constante : tu vois d'un coup d'œil le temps qui reste",
+  reel:"Comme un vrai sablier : le sable coule toujours au même débit, le niveau descend de plus en plus vite à la fin"
+};
+function paintFlow(){
+  if (!FLOW_HINTS[cfg.flow]) cfg.flow = "regulier";
+  document.querySelectorAll(".flowpick").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.f === cfg.flow)));
+  $("#flowHint").textContent = FLOW_HINTS[cfg.flow];
+}
+document.querySelectorAll(".flowpick").forEach(b => b.addEventListener("click", () => { cfg.flow = b.dataset.f; saveCfg(); paintFlow(); }));
+paintFlow();
 const vol = $("#volume"), volOut = $("#volumeOut");
 const paintVol = () => { volOut.textContent = vol.value + " %"; vol.style.setProperty("--p", vol.value + "%"); };
 vol.value = cfg.volume; paintVol();
@@ -57,7 +69,10 @@ document.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () =
 /* Glisser le doigt vers le haut ou le bas sur le sablier le retourne et relance la session.
    Le sens de rotation suit le geste : vers le bas à droite, il tourne dans le sens des aiguilles d'une montre. */
 let swipe = null;
-scene.addEventListener("pointerdown", e => { swipe = { x:e.clientX, y:e.clientY, t:performance.now() }; });
+scene.addEventListener("pointerdown", e => {
+  swipe = { x:e.clientX, y:e.clientY, t:performance.now() };
+  try{ scene.setPointerCapture(e.pointerId); }catch(err){} // le geste compte même si le doigt sort du sablier
+});
 scene.addEventListener("pointerup", e => {
   if (!swipe) return;
   const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y, quick = performance.now() - swipe.t < 900;
@@ -69,7 +84,10 @@ scene.addEventListener("pointercancel", () => { swipe = null; });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && body.classList.contains("open")) return closeSheet();
   if (body.classList.contains("open") || e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.code === "Space"){ e.preventDefault(); st.running ? pause() : start(); }
+  if (e.code === "Space"){
+    if (e.target.closest && e.target.closest("button, input")) return; // Espace sur un bouton : le bouton s'en charge (sinon double action)
+    e.preventDefault(); st.running ? pause() : start();
+  }
   else if (e.key === "r" || e.key === "R") reset();
   else if (e.key === "n" || e.key === "N") finish(false);
 });

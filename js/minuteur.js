@@ -12,41 +12,45 @@ let turning = false;
 function start(){
   if (turning) return;
   ensureAudio(); swish();
-  if (st.remaining <= 0) st.remaining = total(st.mode);
+  if (st.remaining <= 0){ st.len = total(st.mode); st.remaining = st.len; }
   st.endAt = Date.now() + st.remaining; st.running = true;
   ambient(cfg.sandAmb); wakeOn(); saveState(); render();
 }
 function pause(){
+  if (turning || !st.running) return;
   st.remaining = remainingNow(); st.running = false;
   ambient(false); wakeOff(); saveState(); render();
 }
 function reset(){
   if (turning) return;
-  st.running = false; st.remaining = total(st.mode);
+  st.running = false; st.len = total(st.mode); st.remaining = st.len;
   ambient(false); wakeOff(); saveState(); render(); draw(true);
 }
 function setMode(m){
-  if (turning) return;
-  st.mode = m; st.running = false; st.remaining = total(m);
+  if (turning || m === st.mode) return; // toucher le mode déjà choisi ne doit pas effacer la session en cours
+  st.mode = m; st.running = false; st.len = total(m); st.remaining = st.len;
   ambient(false); wakeOff(); saveState(); render(); draw(true);
 }
-function finish(natural){
+/* Fin de session. natural : elle est allée au bout (sinon on l'a passée) ;
+   quiet : elle s'est terminée appli fermée, on la compte sans sonner en retard. */
+function finish(natural, quiet){
   if (turning) return;
   const was = st.mode;
   st.running = false; st.remaining = 0; ambient(false);
   if (natural){
-    if (cfg.sound){ ensureAudio(); was === "focus" ? gong() : chime(); }
-    if (cfg.vibrate && navigator.vibrate){ try{ navigator.vibrate(was === "focus" ? [180,90,180,90,320] : [120,80,120]); }catch(e){} }
-    if (was === "focus"){ stats.sessions++; stats.minutes += cfg.focus; saveStats(); renderStats(); }
+    if (!quiet && cfg.sound){ ensureAudio(); was === "focus" ? gong() : chime(); }
+    if (!quiet && cfg.vibrate && navigator.vibrate){ try{ navigator.vibrate(was === "focus" ? [180,90,180,90,320] : [120,80,120]); }catch(e){} }
+    if (was === "focus"){ stats.sessions++; stats.minutes += Math.round(sessionLen() / 60000); saveStats(); renderStats(); }
   }
   let next;
   if (was === "focus"){ st.done++; next = st.done >= cfg.every ? "long" : "short"; }
   else { if (was === "long") st.done = 0; next = "focus"; }
   sandFrac = 0;
   turnOver(1, () => {
-    st.mode = next; st.remaining = total(next); saveState();
+    st.mode = next; st.len = total(next); st.remaining = st.len; saveState();
     draw(true); render();
-    if (next === "focus" ? cfg.autoFocus : cfg.autoBreak) start(); else wakeOff();
+    // appli rouverte après coup : la suite attend qu'on la lance
+    if (!quiet && (next === "focus" ? cfg.autoFocus : cfg.autoBreak)) start(); else wakeOff();
   });
 }
 /* On retourne le sablier (dir : 1 sens des aiguilles d'une montre, -1 l'autre sens).
@@ -62,7 +66,7 @@ function flipRestart(dir){
   if (turning) return;
   ensureAudio(); // pendant le geste, sinon l'iPhone bloque le son
   st.running = false; ambient(false);
-  turnOver(dir, () => { st.remaining = total(st.mode); saveState(); draw(true); start(); });
+  turnOver(dir, () => { st.len = total(st.mode); st.remaining = st.len; saveState(); draw(true); start(); });
 }
 
 /* ---------------- Affichage ---------------- */
@@ -71,7 +75,7 @@ let lastSec = -1;
 function fmt(ms){ const s = Math.ceil(ms / 1000), m = Math.floor(s / 60); return String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); }
 function draw(force){
   const rem = remainingNow();
-  if (!turning) sandFrac = Math.min(1, rem / total(st.mode));
+  if (!turning) sandFrac = Math.min(1, rem / sessionLen());
   const sec = Math.ceil(rem / 1000);
   if (force || sec !== lastSec){
     lastSec = sec;
@@ -84,7 +88,7 @@ function draw(force){
 function render(){
   document.querySelectorAll(".mode").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === st.mode)));
   app.classList.toggle("idle", !st.running);
-  const fresh = st.remaining >= total(st.mode) && !st.running;
+  const fresh = st.remaining >= sessionLen() && !st.running;
   app.classList.toggle("paused", !st.running && !fresh && !turning);
   toggleBtn.textContent = st.running ? "Pause" : (fresh ? "Démarrer" : "Reprendre");
   toggleBtn.disabled = turning;
