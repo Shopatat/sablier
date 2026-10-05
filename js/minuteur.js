@@ -38,19 +38,21 @@ function finish(natural, quiet){
   const was = st.mode;
   st.running = false; st.remaining = 0; ambient(false);
   if (natural){
-    if (!quiet && cfg.sound){ ensureAudio(); was === "focus" ? gong() : chime(); }
-    if (!quiet && cfg.vibrate && navigator.vibrate){ try{ navigator.vibrate(was === "focus" ? [180,90,180,90,320] : [120,80,120]); }catch(e){} }
+    const brk = was === "short" || was === "long";
+    if (!quiet && cfg.sound){ ensureAudio(); brk ? chime() : gong(); }
+    if (!quiet && cfg.vibrate && navigator.vibrate){ try{ navigator.vibrate(!brk ? [180,90,180,90,320] : [120,80,120]); }catch(e){} }
     if (was === "focus"){ stats.sessions++; stats.minutes += Math.round(sessionLen() / 60000); saveStats(); renderStats(); }
   }
   let next;
-  if (was === "focus"){ st.done++; next = st.done >= cfg.every ? "long" : "short"; }
+  if (was === "timer") next = "timer"; // le minuteur se retourne et attend qu'on le relance
+  else if (was === "focus"){ st.done++; next = st.done >= cfg.every ? "long" : "short"; }
   else { if (was === "long") st.done = 0; next = "focus"; }
   sandFrac = 0;
   turnOver(1, () => {
     st.mode = next; st.len = total(next); st.remaining = st.len; saveState();
     draw(true); render();
     // appli rouverte après coup : la suite attend qu'on la lance
-    if (!quiet && (next === "focus" ? cfg.autoFocus : cfg.autoBreak)) start(); else wakeOff();
+    if (!quiet && next !== "timer" && (next === "focus" ? cfg.autoFocus : cfg.autoBreak)) start(); else wakeOff();
   });
 }
 /* On retourne le sablier (dir : 1 sens des aiguilles d'une montre, -1 l'autre sens).
@@ -70,8 +72,10 @@ function flipRestart(dir){
 }
 
 /* ---------------- Affichage ---------------- */
+const tsetEl = $("#tset"), tLenEl = $("#tLen"), skipBtn = $("#skip");
 const timeEl = $("#time"), statusEl = $("#status"), toggleBtn = $("#toggle"), pipsEl = $("#pips");
 let lastSec = -1;
+const fmtLen = m => m < 60 ? m + " min" : Math.floor(m / 60) + " h" + (m % 60 ? " " + String(m % 60).padStart(2, "0") : "");
 function fmt(ms){ const s = Math.ceil(ms / 1000), m = Math.floor(s / 60); return String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); }
 function draw(force){
   const rem = remainingNow();
@@ -93,11 +97,18 @@ function render(){
   toggleBtn.textContent = st.running ? "Pause" : (fresh ? "Démarrer" : "Reprendre");
   toggleBtn.disabled = turning;
   if (turning) statusEl.textContent = "On retourne le sablier…";
+  else if (st.mode === "timer") statusEl.textContent = st.running ? "Le sable coule" : (fresh ? "Minuteur prêt" : "Minuteur en pause");
   else if (st.mode === "focus") statusEl.textContent = st.running ? "Concentration en cours" : (fresh ? "Prêt pour une session de travail" : "En pause");
   else statusEl.textContent = st.running ? (st.mode === "long" ? "Longue pause, profite" : "Petite pause, souffle un coup") : (fresh ? "La pause t'attend" : "Pause suspendue");
   let p = "";
   for (let i = 0; i < cfg.every; i++) p += `<div class="pip${i < st.done ? " on" : ""}"></div>`;
   pipsEl.innerHTML = p;
+  // minuteur : sa durée remplace les sessions du cycle ; on ne la change qu'avant de le lancer
+  const tm = st.mode === "timer";
+  pipsEl.hidden = tm; tsetEl.hidden = !tm;
+  tsetEl.classList.toggle("locked", !fresh || turning);
+  tLenEl.textContent = fmtLen(Math.round(sessionLen() / 60000));
+  skipBtn.setAttribute("aria-label", tm ? "Arrêter le minuteur" : "Passer à la session suivante");
   pipsEl.setAttribute("aria-label", `${Math.min(st.done, cfg.every)} sessions sur ${cfg.every} avant la longue pause`);
 }
 // Minuteur affiché ou non : sans les chiffres, le sablier prend la place libérée.

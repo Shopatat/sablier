@@ -106,6 +106,13 @@ button:focus-visible, input:focus-visible{ outline:2px solid var(--gold-hi); out
 .status{ font-size:14px; color:var(--muted); min-height:1.3em; }
 .pips{ display:flex; gap:8px; align-items:flex-end; }
 .pip{ width:14px; height:12px; clip-path:polygon(50% 0,100% 100%,0 100%); background:rgba(201,162,78,.25); transition:background .4s, filter .4s; }
+.pips[hidden], .tset[hidden]{ display:none; }
+.tset{ display:flex; align-items:center; gap:6px; transition:opacity .3s; }
+.tset.locked{ opacity:.45; pointer-events:none; }
+.tset button{ appearance:none; border:0; width:34px; height:34px; border-radius:50%; cursor:pointer; color:var(--gold-hi);
+  font:400 20px/1 var(--font-ui); background:radial-gradient(circle at 50% 35%, rgba(80,52,22,.9), rgba(25,15,7,.9));
+  box-shadow:0 0 0 1px var(--line), inset 0 1px 0 rgba(243,217,147,.18); }
+.tset output{ min-width:6.5ch; text-align:center; font:400 18px/1 var(--font-display); color:var(--gold-hi); }
 .pip.on{ background:linear-gradient(180deg,var(--gold-hi),var(--gold)); filter:drop-shadow(0 0 6px rgba(255,190,90,.7)); }
 
 /* ---------- Commandes ---------- */

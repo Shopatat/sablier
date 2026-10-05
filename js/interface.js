@@ -7,6 +7,7 @@ const RANGES = [
   ["short", "Pause courte", 1, 30, 1, v => v + " min"],
   ["long", "Pause longue", 5, 60, 1, v => v + " min"],
   ["every", "Sessions avant la pause longue", 2, 8, 1, v => v],
+  ["timer", "Minuteur", 1, 180, 1, v => fmtLen(v)],
 ];
 const dur = $("#durations");
 RANGES.forEach(([k, label, min, max, step, show]) => {
@@ -66,6 +67,14 @@ toggleBtn.addEventListener("click", () => st.running ? pause() : start());
 $("#reset").addEventListener("click", reset);
 $("#skip").addEventListener("click", () => finish(false));
 document.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+/* Durée du minuteur, réglable sous le sablier : de minute en minute jusqu'à 10, puis de 5 en 5. */
+function stepTimer(up){
+  const v = cfg.timer, n = up ? (v < 10 ? v + 1 : (Math.floor(v / 5) + 1) * 5) : (v <= 10 ? v - 1 : Math.ceil(v / 5) * 5 - 5);
+  const inp = $("#r-timer"); inp.value = Math.max(1, Math.min(180, n));
+  inp.dispatchEvent(new Event("input")); // même chemin que la réglette des réglages
+}
+$("#tLess").addEventListener("click", () => stepTimer(false));
+$("#tMore").addEventListener("click", () => stepTimer(true));
 /* Glisser le doigt vers le haut ou le bas sur le sablier le retourne et relance la session.
    Le sens de rotation suit le geste : vers le bas à droite, il tourne dans le sens des aiguilles d'une montre. */
 let swipe = null;

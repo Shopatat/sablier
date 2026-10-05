@@ -9,12 +9,13 @@ const store = {
   get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
 };
-const DEF = { focus:25, short:5, long:15, every:4, autoBreak:true, autoFocus:false, sound:true, sandAmb:false, showTime:false, flow:"regulier", sandColor:"white", volume:70, vibrate:true, wake:true };
+const DEF = { focus:25, short:5, long:15, timer:10, every:4, autoBreak:true, autoFocus:false, sound:true, sandAmb:false, showTime:false, flow:"regulier", sandColor:"white", volume:70, vibrate:true, wake:true };
 const cfg = Object.assign({}, DEF, store.get("sablier.settings", {}));
 const today = () => { const d = new Date(); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); };
 let stats = store.get("sablier.stats", { date:today(), sessions:0, minutes:0 });
 if (stats.date !== today()) stats = { date:today(), sessions:0, minutes:0 };
-const MODES = { focus:"Travail", short:"Pause courte", long:"Pause longue" };
+// timer : minuteur simple, hors cycle pomodoro (pas de pause derrière, pas compté dans les statistiques)
+const MODES = { focus:"Travail", short:"Pause courte", long:"Pause longue", timer:"Minuteur" };
 const total = m => cfg[m] * 60000;
 // len : durée de la session en cours, figée à son lancement (changer un réglage pendant
 // une session ne doit pas faire sauter le sable ni fausser les statistiques).

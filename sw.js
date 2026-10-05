@@ -1,6 +1,6 @@
 // Service worker : garde l'appli en cache pour qu'elle marche hors ligne.
 // Pense à changer VERSION à chaque mise à jour, sinon les téléphones gardent l'ancienne version.
-const VERSION = "sablier-v9";
+const VERSION = "sablier-v10";
 const FILES = [
   "./", "./index.html", "./manifest.webmanifest", "./css/style.css",
   "./js/reglages.js", "./js/sablier3d.js", "./js/son.js", "./js/minuteur.js",

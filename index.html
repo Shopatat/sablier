@@ -37,6 +37,7 @@
       <button class="mode" data-mode="focus" aria-pressed="true">Travail</button>
       <button class="mode" data-mode="short" aria-pressed="false">Pause courte</button>
       <button class="mode" data-mode="long" aria-pressed="false">Pause longue</button>
+      <button class="mode" data-mode="timer" aria-pressed="false">Minuteur</button>
     </div>
     <button class="iconbtn" id="openSettings" aria-label="Réglages">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3.6"/></svg>
@@ -52,6 +53,9 @@
     <div class="time" id="time" role="timer" aria-live="off"></div>
     <div class="status" id="status" aria-live="polite"></div>
     <div class="pips" id="pips" role="img"></div>
+    <div class="tset" id="tset" role="group" aria-label="Durée du minuteur" hidden>
+      <button id="tLess" aria-label="Moins de temps">−</button><output id="tLen"></output><button id="tMore" aria-label="Plus de temps">+</button>
+    </div>
   </div>
 
   <div class="controls">
@@ -98,7 +102,7 @@
     <button class="textbtn" id="testSound">Écouter le gong</button>
   </div>
 
-  <div class="group keys">Glisse le doigt vers le haut ou le bas sur le sablier pour le retourner : la session repart du début.<br>Raccourcis clavier : <kbd>Espace</kbd> démarrer ou mettre en pause, <kbd>R</kbd> recommencer, <kbd>N</kbd> passer à la suite.</div>
+  <div class="group keys">Glisse le doigt vers le haut ou le bas sur le sablier pour le retourner : la session repart du début.<br>Raccourcis clavier : <kbd>Espace</kbd> démarrer ou mettre en pause, <kbd>R</kbd> recommencer, <kbd>N</kbd> passer à la suite.<br>Le mode Minuteur est un simple compte à rebours : pas de pause derrière, et il ne compte pas dans tes sessions de travail.</div>
 </section>
 
 <script src="js/reglages.js"></script>
