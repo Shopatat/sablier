@@ -5,59 +5,95 @@
    Dessiné sur un canvas avec un petit moteur 3D maison : chaque face est projetée,
    éclairée et dessinée dans le bon ordre. Plus de faces qui passent les unes à travers
    les autres, quel que soit le navigateur.
-   Le cadre : deux plateaux à gradins reliés par quatre colonnettes tournées.
+   Le cadre : deux gros plateaux dorés gravés, comme le sablier du jeu Atmosfear (Khufu).
    Le verre : une paroi épaisse (surface extérieure + intérieure), plus brillante vue de biais,
    avec des reflets qui glissent quand le sablier tourne.
-   Le sable : grain visible, cratère qui se creuse en haut, tas en cône en bas. */
-const bandSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='170' height='30' viewBox='0 0 170 30' fill='none' stroke='#4a3210' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'>
-<path d='M0 2h170M0 28h170' stroke-width='1.2' opacity='.7'/><path d='M2 5v20M168 5v20' opacity='.6'/>
-<ellipse cx='14' cy='9' rx='3.6' ry='4.4'/><path d='M14 13.4v12M8.5 15.5h11'/>
-<path d='M26 13q10-8 20 0q-10 6-20 0z'/><circle cx='36' cy='13' r='2.2' fill='#4a3210'/><path d='M36 16l-2 8M40 16q3 6 7 5'/>
-<path d='M54 16l3-3 3 3 3-3 3 3 3-3 3 3'/><path d='M54 21l3-3 3 3 3-3 3 3 3-3 3 3' opacity='.7'/>
-<path d='M90 25q-5-11 2-21q3 11-2 21z'/>
-<circle cx='106' cy='14' r='6.5'/><circle cx='106' cy='14' r='1.6' fill='#4a3210'/>
-<path d='M120 24h14M122 24v-9h10v9M121 15q6-9 12 0'/>
-<ellipse cx='150' cy='15' rx='5' ry='7'/><path d='M150 8v14M145 12l-4-2M145 18l-4 2M155 12l4-2M155 18l4 2'/>
-</svg>`;
-const bandImg = new Image(); let bandReady = false;
-bandImg.onload = () => { bandReady = true; makeBand(); };
-bandImg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(bandSvg);
+   Le sable : grain visible, dessus plat en haut comme dans le jeu, tas en cône en bas. */
+/* Hiéroglyphes, dessinés dans une case de 24 × 30 : ankh, œil oudjat, pilier djed, scarabée,
+   plume de Maât, disque solaire, eau, lotus, sceptre ouas. */
+const GLYPHS = [
+  '<ellipse cx="12" cy="9" rx="3.6" ry="5"/><path d="M5 15.5h14M12 14v13M9 27h6"/>',
+  '<path d="M3 7.5Q12 3.5 21 6.5"/><path d="M3 12Q12 6.5 21 12Q12 16 3 12z"/><circle cx="12" cy="11.6" r="2.3" class="f"/><path d="M10.5 15.5L8.5 24M14 15.5q1.5 7 6 6.5q2-.6.6-2.6"/>',
+  '<path d="M8 4.5q4-3 8 0M7 7.5h10M7 10.5h10M7 13.5h10M10 13.5v12M14 13.5v12M7.5 26.5h9"/>',
+  '<path d="M9.5 8q2.5-4 5 0z"/><ellipse cx="12" cy="17.5" rx="5.5" ry="7.5"/><path d="M12 10v15M6.5 13.5l-4-2.5M6.3 18.5l-4 1.5M7.5 23l-3.5 3M17.5 13.5l4-2.5M17.7 18.5l4 1.5M16.5 23l3.5 3"/>',
+  '<path d="M11 27.5C9.5 20 9 12 10.5 5C11.5 2.5 15 2.5 16.5 5.5C15 6 14 7 13.8 9C13.5 15 13 21 11 27.5z"/><path d="M11.4 24C11.2 18 11.4 12 12.2 7"/>',
+  '<circle cx="12" cy="13" r="6.5"/><circle cx="12" cy="13" r="2" class="f"/><path d="M5 23h14"/>',
+  '<path d="M2 11l2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5M2 16l2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5M2 21l2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5"/>',
+  '<path d="M12 27V17"/><path d="M12 17C7 16.5 5 11 6.5 6.5c2 3 4.5 6 5.5 10.5c1-4.5 3.5-7.5 5.5-10.5C19 11 17 16.5 12 17z"/><path d="M12 16.5C10.8 12 11 8 12 4c1 4 1.2 8 0 12.5"/><path d="M8 27h8"/>',
+  '<path d="M11 27V9"/><path d="M11 9c0-3 2-4.5 4.5-4l1.5 3.5"/><path d="M11 27l-2.5-2.5M11 27l2.5-2.5"/>'
+];
+const svgOf = (w, h, body, col, sw) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><style>.f{fill:${col}}</style>${body}</svg>`);
+// Frise des côtés : neuf signes séparés par de fins filets, entre deux traits
+const BAND_W = 4 + GLYPHS.length * 28;
+const bandBody = '<path d="M0 1.2H' + BAND_W + 'M0 28.8H' + BAND_W + '" stroke-width="1"/>' +
+  GLYPHS.map((g, i) => `<g transform="translate(${4 + i * 28} 0)">${g}</g><path d="M${2 + i * 28} 5v20" stroke-width=".6"/>`).join("");
+// Panneau du dessus : double cadre en creux et disque solaire ailé au centre
+const wing = '<path d="M158 172C128 156 92 150 56 158c10 7 12 13 8 21c32-2 64 2 94 10"/>' +
+  '<path d="M150 173C124 163 96 160 70 165M150 181C124 175 98 172 72 174M152 187C128 183 104 181 80 182"/>' +
+  '<path d="M64 179l-6 7M80 182l-5 8M96 183l-4 8M112 185l-3 8M128 186l-2 8"/>';
+const panelBody = '<rect x="26" y="26" width="308" height="308" rx="3" stroke-width="3"/><rect x="38" y="38" width="284" height="284" rx="2" stroke-width="1.4"/>' +
+  '<g transform="translate(180 178) scale(1.3) translate(-180 -178)">' +
+  wing + '<g transform="translate(360 0) scale(-1 1)">' + wing + '</g>' +
+  '<circle cx="180" cy="176" r="20" stroke-width="2.6"/><circle cx="180" cy="176" r="12" stroke-width="1.6"/>' +
+  '<path d="M166 192q-3 8 2 12M194 192q3 8-2 12" stroke-width="2"/></g>';
+// Gravé dans l'or : un trait sombre (le creux) doublé d'un liseré clair décalé (le bord qui prend la lumière)
+const ENGRAVE = { dark:"#5a3a0a", light:"#fff3c2" };
+const art = {};
+[["bandD", BAND_W, 30, bandBody, ENGRAVE.dark, 1.7], ["bandL", BAND_W, 30, bandBody, ENGRAVE.light, 1.7],
+ ["panelD", 360, 360, panelBody, ENGRAVE.dark, 2.4], ["panelL", 360, 360, panelBody, ENGRAVE.light, 2.4]].forEach(([k, w, h, b, c, sw]) => {
+  const im = new Image(); im.onload = () => { art[k] = im; if (Object.keys(art).length === 4) makeBand(); }; im.src = svgOf(w, h, b, c, sw);
+});
+function engrave(c, d, l, x, y, w, h, off, a){
+  c.globalAlpha = a * .8; c.drawImage(l, x + off, y + off, w, h);
+  c.globalAlpha = a; c.drawImage(d, x, y, w, h); c.globalAlpha = 1;
+}
 
 const cvs = $("#hg"), ctx = cvs.getContext("2d"), scene = $("#scene"), app = $("#app");
 const DEG = Math.PI / 180, K = Math.tan(32 * DEG), CN = 32, PERSP = 1100, TAU = 2 * Math.PI;
-let G = null, MODEL = null, CW = 0, CH = 0, DPR = 1, strip = null, grain = null;
+let G = null, MODEL = null, CW = 0, CH = 0, DPR = 1, strip = null, panel = null, grain = null;
 let sandFrac = 1, flipT0 = 0, streamA = 0;
-
-/* Profil d'une colonnette, du plateau jusqu'au milieu (l'autre moitié est le miroir).
-   [position le long de la colonne 0 → 0,5, rayon en multiples de G.R] */
-const PROFILE = [[0,1.55],[.02,1.55],[.03,1.15],[.042,1.15],[.052,1.42],[.066,1.42],[.08,.92],[.105,.74],[.37,.66],[.42,.76],[.448,1.22],[.468,1.38],[.5,1.38]];
 
 function build(){
   const r = scene.getBoundingClientRect();
   DPR = Math.min(2, window.devicePixelRatio || 1); CW = r.width; CH = r.height;
   cvs.width = Math.max(1, Math.round(CW * DPR)); cvs.height = Math.max(1, Math.round(CH * DPR));
-  const S = Math.max(80, Math.min(CH * .36, CW * .42, 250));
-  // S : côté de la base du verre, H : hauteur d'une ampoule, Ts/Tm/Tc : gradin, plateau, chapeau
-  G = { S, H:S * .8, Ts:S * .035, Tm:S * .11, Tc:S * .024, W:S * 1.26, P:S * .565, R:S * .024 };
+  const S = Math.max(80, Math.min(CH * .36, CW * .5, 260));
+  // S : côté de la base du verre, H : hauteur d'une ampoule, T : épaisseur d'un plateau, W : sa largeur
+  G = { S, H:S * .8, T:S * .15, W:S * 1.06 };
   $("#halo").style.setProperty("--halo", (S * 2.6) + "px");
-  MODEL = {
-    top:plate(-1), bot:plate(1),
-    posts:[[1, 1], [-1, 1], [-1, -1], [1, -1]].map(([a, b]) => post(a * G.P, b * G.P)),
-    glass:[-1, 1].map(sg => ({ out:pyrFaces(sg * G.H, S / 2, "glass"), inn:pyrFaces(sg * G.H, S / 2 * .935, "glass") }))
-  };
+  MODEL = { glass:[-1, 1].map(sg => ({ out:pyrFaces(sg * G.H, S / 2, "glass"), inn:pyrFaces(sg * G.H, S / 2 * .935, "glass") })) };
+  /* Les morceaux du sablier, de haut en bas, triés à chaque image (voir drawOrder).
+     y0/y1 : tranche de hauteur occupée. */
+  const { H, T } = G, objs = [];
+  [-1, 1].forEach(sg => {
+    const F = plate(sg);
+    objs.push({ y0:Math.min(sg * H, sg * (H + T)), y1:Math.max(sg * H, sg * (H + T)), draw:() => drawSolid(F) });
+    objs.push({ y0:Math.min(0, sg * H), y1:Math.max(0, sg * H), chamber:sg });
+  });
+  MODEL.objs = objs;
   makeBand();
 }
 function makeBand(){
-  if (!bandReady || !G) return;
-  const sc = 2, w = Math.round(G.W * sc), h = Math.round(G.Tm * sc);
+  if (Object.keys(art).length < 4 || !G) return;
+  const sc = 3, w = Math.round(G.W * sc), h = Math.round(G.T * sc);
   strip = document.createElement("canvas"); strip.width = w; strip.height = h;
   const c = strip.getContext("2d");
   const g = c.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, "rgba(255,246,205,.6)"); g.addColorStop(.16, "rgba(255,246,205,0)");
-  g.addColorStop(.84, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(40,24,4,.5)");
+  g.addColorStop(0, "rgba(255,246,205,.6)"); g.addColorStop(.12, "rgba(255,246,205,0)");
+  g.addColorStop(.86, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(40,24,4,.5)");
   c.fillStyle = g; c.fillRect(0, 0, w, h);
-  const bh = h * .74, bw = bh * 170 / 30, n = Math.ceil(w / bw);
-  for (let i = 0, x = (w - n * bw) / 2; i < n; i++, x += bw) c.drawImage(bandImg, x, (h - bh) / 2, bw, bh);
+  const bh = h * .62, bw = bh * BAND_W / 30, n = Math.max(1, Math.round(w / bw)), bw2 = w / n;
+  for (let i = 0; i < n; i++) engrave(c, art.bandD, art.bandL, i * bw2, (h - bh) / 2, bw2, bh, sc * .45, .85);
+  makePanel();
+}
+/* Panneau gravé du dessus des plateaux */
+function makePanel(){
+  const n = 540, p = document.createElement("canvas"); p.width = p.height = n;
+  const c = p.getContext("2d");
+  c.fillStyle = "rgba(90,60,18,.07)"; c.fillRect(n * 38 / 360, n * 38 / 360, n * 284 / 360, n * 284 / 360);
+  engrave(c, art.panelD, art.panelL, 0, 0, n, n, 2, .8);
+  panel = p;
 }
 /* Texture de grains : des points sombres et des points qui accrochent la lumière */
 function makeGrain(){
@@ -98,7 +134,8 @@ function boxFaces(yA, yB, W, band, deco){
     F.push(face([tl, tr, br, bl], inside, "gold", band ? { band:[tl, tr, bl] } : null));
   }
   const q = y => [[-h, y, -h], [h, y, -h], [h, y, h], [-h, y, h]];
-  F.push(face(q(y0), inside, "gold", { flat:true, deco }), face(q(y1), inside, "gold", { flat:true, deco }));
+  F.push(face(q(y0), inside, "gold", { flat:true, deco, panel:[q(y0)[0], q(y0)[1], q(y0)[3]] }),
+         face(q(y1), inside, "gold", { flat:true, deco, panel:[q(y1)[0], q(y1)[1], q(y1)[3]] }));
   return F;
 }
 function pyrFaces(yb, hw, mat){ // pointe au goulot (0,0,0), base au niveau yb
@@ -106,33 +143,17 @@ function pyrFaces(yb, hw, mat){ // pointe au goulot (0,0,0), base au niveau yb
   for (let i = 0; i < 4; i++) F.push(face([[0, 0, 0], c[i], c[(i + 1) % 4]], inside, mat, { base:[c[i], c[(i + 1) % 4]] }));
   return F;
 }
-/* Un plateau : gradin contre le verre, plateau gravé, chapeau à l'extérieur. sg = -1 en haut, 1 en bas. */
+/* Un plateau : un gros bloc doré, hiéroglyphes sur les côtés, panneau gravé dessus. sg = -1 en haut, 1 en bas. */
 function plate(sg){
-  const { S, H, Ts, Tm, Tc, W } = G, y0 = sg * H, y1 = y0 + sg * Ts, y2 = y1 + sg * Tm, y3 = y2 + sg * Tc;
-  return { sg, yOut:y3, step:boxFaces(y0, y1, S), slab:boxFaces(y1, y2, W, true), cap:boxFaces(y2, y3, W * .82, false, true) };
-}
-/* Une colonnette tournée, découpée en anneaux pour les dessiner du plus loin au plus proche */
-function post(cx, cz){
-  const { H, Ts, R } = G, y0 = -(H + Ts), L = 2 * (H + Ts), N = 14;
-  const prof = PROFILE.concat(PROFILE.slice(0, -1).reverse().map(([t, r]) => [1 - t, r]));
-  const at = (r, y, a) => [cx + r * Math.cos(a), y, cz + r * Math.sin(a)], rings = [];
-  for (let i = 0; i < prof.length - 1; i++){
-    const ya = y0 + prof[i][0] * L, yb = y0 + prof[i + 1][0] * L, ra = prof[i][1] * R, rb = prof[i + 1][1] * R;
-    const inside = [cx, (ya + yb) / 2, cz], F = [];
-    for (let j = 0; j < N; j++){
-      const a1 = j / N * TAU, a2 = (j + 1) / N * TAU;
-      F.push(face([at(ra, ya, a1), at(ra, ya, a2), at(rb, yb, a2), at(rb, yb, a1)], inside, "post"));
-    }
-    rings.push({ c:inside, F });
-  }
-  return { c:[cx, 0, cz], rings };
+  const { H, T, W } = G, F = boxFaces(sg * H, sg * (H + T), W, true, true);
+  F[sg < 0 ? 5 : 4].deco = false; // pas de gravure sur la face collée au verre
+  return F;
 }
 
 /* -- éclairage : lumière blanche en haut à gauche + torche orangée à droite -- */
 const LK = nrm([-.5, -.78, .6]), LT = nrm([.9, -.2, .4]);
-const GOLD = [201, 162, 78], GOLDT = [228, 194, 112];
+const GOLD = [222, 192, 70], GOLDT = [240, 214, 100]; // jaune doré, comme dans le jeu
 const L_PLATE = { amb:.3, kd:.7, torch:.3, kf:.18, ks:.35, sh:14 };
-const L_POST = { amb:.24, kd:.7, torch:.35, kf:.22, ks:.95, sh:26 };
 const L_SAND = { amb:.46, kd:.5, torch:.16, kf:.2, ks:0, sh:1 };
 function shade(base, f, L){
   const N = f.N, V = nrm(sub(eye, f.C));
@@ -159,8 +180,8 @@ function poly(Q){ ctx.moveTo(Q[0][0], Q[0][1]); for (let i = 1; i < Q.length; i+
 function path(Q){ ctx.beginPath(); poly(Q); }
 function drawFace(f){
   path(f.Q);
-  if (f.mat === "sand" || f.mat === "post"){
-    const col = f.mat === "sand" ? shade(SANDRGB, f, L_SAND) : shade(GOLD, f, L_POST);
+  if (f.mat === "sand"){
+    const col = shade(SANDRGB, f, L_SAND);
     ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = .8; ctx.stroke(); // bouche les micro-fentes
     return;
   }
@@ -169,26 +190,34 @@ function drawFace(f){
     const [a, b, c] = f.band.map(p => proj(T(p)));
     ctx.save(); path(f.Q); ctx.clip();
     ctx.transform((b[0]-a[0]) / strip.width, (b[1]-a[1]) / strip.width, (c[0]-a[0]) / strip.height, (c[1]-a[1]) / strip.height, a[0], a[1]);
-    ctx.globalAlpha = .9; ctx.drawImage(strip, 0, 0); ctx.restore();
+    ctx.globalAlpha = .95; ctx.drawImage(strip, 0, 0); ctx.restore();
     path(f.Q);
   }
   ctx.strokeStyle = "rgba(60,38,10,.55)"; ctx.lineWidth = .8; ctx.stroke();
-  if (f.deco){ // double filet gravé sur la face extérieure
-    const c = mid(f.Q.map(q => [q[0], q[1], 0]));
-    [[.1, "rgba(90,60,18,.5)", 1.2], [.15, "rgba(255,238,185,.28)", 1]].forEach(([t, s, w]) => {
-      path(f.Q.map(q => [q[0] + (c[0] - q[0]) * t, q[1] + (c[1] - q[1]) * t])); ctx.strokeStyle = s; ctx.lineWidth = w; ctx.stroke();
-    });
+  if (f.deco && panel){ // panneau gravé sur la face extérieure
+    const [a, b, c] = f.panel.map(p => proj(T(p)));
+    ctx.save(); path(f.Q); ctx.clip();
+    ctx.transform((b[0]-a[0]) / panel.width, (b[1]-a[1]) / panel.width, (c[0]-a[0]) / panel.height, (c[1]-a[1]) / panel.height, a[0], a[1]);
+    ctx.drawImage(panel, 0, 0); ctx.restore();
   }
 }
-function drawSolid(F){ const vis = []; for (const f of F){ prep(f); if (f.front){ drawFace(f); vis.push(f.Q); } } return vis; }
+function drawSolid(F){ const vis = []; for (const f of F){ prep(f); if (f.front){ drawFace(f); vis.push(f); } } return vis; }
 
-/* Grain du sable, posé en une fois sur toutes les faces visibles d'un tas */
-function grainOver(polys, at){
-  if (!grain || !polys.length) return;
-  ctx.beginPath(); polys.forEach(poly);
-  try{ grain.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(at[0]), Math.round(at[1])])); }catch(e){}
-  ctx.save(); ctx.globalAlpha = .32; ctx.fillStyle = grain; ctx.fill(); ctx.restore();
+/* Grain du sable : la texture est « collée » sur chaque face (elle suit sa position et son
+   inclinaison), pour qu'elle ne glisse pas sur le sable quand le sablier tourne. */
+function grainOn(F){
+  if (!grain || !F.length) return;
+  ctx.save(); ctx.globalAlpha = .32;
+  for (const f of F){
+    const p0 = f.pts[0], U = nrm(sub(f.pts[1], p0)), V = cross(f.n, U), L = 8;
+    const s0 = proj(T(p0)), su = proj(T(addv(p0, U.map(x => x * L)))), sv = proj(T(addv(p0, V.map(x => x * L))));
+    try{ grain.setTransform(new DOMMatrix([(su[0]-s0[0]) / L, (su[1]-s0[1]) / L, (sv[0]-s0[0]) / L, (sv[1]-s0[1]) / L, s0[0], s0[1]])); }catch(e){}
+    ctx.fillStyle = grain; path(f.Q);
+    ctx.fill();
+  }
+  ctx.restore();
 }
+function drawSand(F){ const vis = drawSolid(F); grainOn(vis); return vis; }
 
 /* Reflets de fenêtre sur une face de verre : ils glissent quand la face tourne */
 function streaks(f){
@@ -231,25 +260,16 @@ function drawGlass(gl, front){
 
 /* Sable du haut. Son niveau baisse à vitesse constante (et non comme un vrai sablier,
    qui se vide de plus en plus vite à la fin) : on lit le temps restant d'un coup d'œil.
-   Dès que ça coule, un cratère se creuse au centre. */
+   Le dessus reste plat, comme dans le jeu. */
 function drawTopSand(){
   const frac = sandFrac;
-  if (frac < .002) return [];
+  if (frac < .002) return;
   const { S, H } = G, y = -frac * H, hw = .925 * S / 2 * frac;
-  const vis = drawSolid(pyrFaces(y, hw, "sand"));
+  drawSand(pyrFaces(y, hw, "sand"));
   const top = prep(face([[-hw, y, -hw], [hw, y, -hw], [hw, y, hw], [-hw, y, hw]], [0, 0, 0], "sand"));
-  if (!top.front) return vis;
-  const rc = .62 * hw, dc = Math.min(rc * K * Math.min(1, (1 - frac) * 30), frac * H * .8);
-  if (dc > .4){
-    const n = 28, ring = [], F = [], sink = [0, y + dc, 0], under = [0, y + dc + H, 0];
-    for (let i = 0; i < n; i++) ring.push([rc * Math.cos(i / n * TAU), y, rc * Math.sin(i / n * TAU)]);
-    for (let i = 0; i < n; i++) F.push(face([ring[i], ring[(i + 1) % n], sink], under, "sand"));
-    ctx.save(); path(top.Q); ctx.clip(); drawSolid(F); ctx.restore();
-    ctx.beginPath(); poly(top.Q); poly(ring.map(p => proj(T(p))));
-    ctx.fillStyle = shade(SANDRGB, top, L_SAND); ctx.fill("evenodd");
-  } else drawFace(top);
-  vis.push(top.Q);
-  return vis;
+  if (!top.front) return;
+  drawFace(top);
+  grainOn([top]);
 }
 /* Sable du bas : un cône qui grossit, puis le fond qui se remplit avec un dôme dessus */
 function heapParts(frac){
@@ -274,30 +294,40 @@ function heapParts(frac){
   return { fr, cone, cap, apex:yl - hh };
 }
 
-function drawStream(apexY, now, k){
+/* Filet de sable : des grains qui tombent en chute libre (lents au goulot, rapides en bas),
+   serrés au départ et un peu dispersés à l'arrivée, avec quelques rebonds sur le tas.
+   Tout se calcule à partir de l'heure : rien à retenir d'une image à l'autre. */
+const rnd = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+function drawStream(apexY, now){
   if (streamA < .02) return;
-  const p0 = proj(T([0, 0, 0])), p1 = proj(T([0, apexY - 1, 0]));
-  const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy);
-  if (len < 3) return;
-  const px = -dy / len, py = dx / len, c = `rgba(${GRAINRGB},`;
+  const L = apexY - 1; if (L < 3) return;
+  const { S, H } = G, c = `rgba(${GRAINRGB},`, at = p => proj(T(p));
+  const k = PERSP / (PERSP - T([0, L / 2, 0])[2]), p0 = at([0, 0, 0]), p1 = at([0, L, 0]);
+  const fall = 520 * Math.sqrt(L / H), N = 110;           // durée de la chute (ms), nombre de grains en l'air
   ctx.save(); ctx.globalAlpha = streamA; ctx.lineCap = "round";
-  ctx.shadowColor = c + ".9)"; ctx.shadowBlur = 6;
-  for (let j = 0; j < 2; j++){ // deux brins qui s'enroulent
-    ctx.beginPath();
-    for (let i = 0; i <= 40; i++){
-      const s = i / 40, w = 1.1 * k * Math.sin(s * len / 5 - now / 55 + j * Math.PI) * Math.min(1, s * 8);
-      const x = p0[0] + dx * s + px * w, y = p0[1] + dy * s + py * w;
-      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-    }
-    ctx.strokeStyle = c + (j ? ".75)" : ".95)"); ctx.lineWidth = 1.5 * k; ctx.stroke();
+  // cœur du filet : très fin, plus dense en haut
+  const g = ctx.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
+  g.addColorStop(0, c + ".85)"); g.addColorStop(.35, c + ".45)"); g.addColorStop(1, c + ".12)");
+  ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.strokeStyle = g; ctx.lineWidth = .9 * k; ctx.stroke();
+  // grains : chacun laisse une petite traînée proportionnelle à sa vitesse
+  const paths = [new Path2D(), new Path2D(), new Path2D()];
+  for (let i = 0; i < N; i++){
+    const u = now / fall + i / N, cyc = Math.floor(u), p = u - cyc, seed = i * 7919 + cyc * 104729;
+    const y = L * p * p, r = S * (.003 + .016 * rnd(seed)) * Math.pow(p, 1.6), an = rnd(seed + 1) * TAU;
+    const x = r * Math.cos(an), z = r * Math.sin(an), q = at([x, y, z]), tail = Math.max(.6, 2 * L * p * 16 / fall);
+    const qt = at([x, Math.max(0, y - tail), z]);
+    const P = paths[(rnd(seed + 2) * 3) | 0]; P.moveTo(qt[0], qt[1]); P.lineTo(q[0], q[1]);
   }
-  ctx.shadowBlur = 0;
-  ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]);
-  ctx.setLineDash([1.5, 7]); ctx.lineDashOffset = -now * .16;
-  ctx.strokeStyle = "rgba(255,255,255,.95)"; ctx.lineWidth = 1.3 * k; ctx.stroke(); ctx.setLineDash([]);
-  const r = 8 * k * (.85 + .15 * Math.sin(now / 40)), g = ctx.createRadialGradient(p1[0], p1[1], 0, p1[0], p1[1], r);
-  g.addColorStop(0, c + ".85)"); g.addColorStop(1, c + "0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(p1[0], p1[1], r, r * .55, 0, 0, 7); ctx.fill();
+  ["1", ".7", ".45"].forEach((al, j) => { ctx.strokeStyle = c + al + ")"; ctx.lineWidth = (1.25 - j * .2) * k; ctx.stroke(paths[j]); });
+  // rebonds sur le tas
+  const B = 14, life = 380;
+  ctx.fillStyle = c + ".8)";
+  for (let i = 0; i < B; i++){
+    const u = now / life + i / B, cyc = Math.floor(u), q = u - cyc, seed = i * 2731 + cyc * 7193;
+    const an = rnd(seed) * TAU, d = S * (.01 + .03 * rnd(seed + 1)) * q, hgt = S * (.006 + .014 * rnd(seed + 2));
+    const pt = at([d * Math.cos(an), L - hgt * Math.sin(q * Math.PI) + d * K * .6, d * Math.sin(an)]);
+    ctx.globalAlpha = streamA * (1 - q); ctx.fillRect(pt[0] - .6 * k, pt[1] - .6 * k, 1.2 * k, 1.2 * k);
+  }
   ctx.restore();
 }
 
@@ -306,22 +336,38 @@ function drawChamber(sg, now){
   const gl = MODEL.glass[sg < 0 ? 0 : 1];
   gl.out.forEach(prep); gl.inn.forEach(prep);
   drawGlass(gl, false);
-  const anchor = proj(T([0, sg * G.H / 2, 0]));
-  if (sg < 0) grainOver(drawTopSand(), anchor);
+  if (sg < 0) drawTopSand();
   else {
     const hp = heapParts(sandFrac), above = hp.cap ? prep(hp.cap).front : true;
-    const vis = above ? drawSolid(hp.fr).concat(drawSolid(hp.cone)) : drawSolid(hp.cone).concat(drawSolid(hp.fr));
-    grainOver(vis, anchor);
-    drawStream(hp.apex, now, PERSP / (PERSP - T([0, G.H / 2, 0])[2]));
+    if (above){ drawSand(hp.fr); drawSand(hp.cone); } else { drawSand(hp.cone); drawSand(hp.fr); }
+    drawStream(hp.apex, now);
   }
   drawGlass(gl, true);
 }
-function drawPost(p){
-  for (const r of p.rings) r.z = T(r.c)[2];
-  p.rings.sort((a, b) => a.z - b.z).forEach(r => drawSolid(r.F));
+/* Ordre de dessin, du plus loin au plus proche : les morceaux sont empilés (plateau, ampoule,
+   ampoule, plateau), séparés par des plans horizontaux. De chaque côté de l'œil, on dessine
+   en partant du bout le plus éloigné. Ça reste juste même quand l'œil passe à hauteur d'un plateau. */
+function sep(A, B, eyeM){ // plan [n, d] avec A du côté n·p < d et B du côté n·p > d
+  // L'œil entre les deux morceaux : ils ne peuvent pas se cacher l'un l'autre, pas de contrainte.
+  if (A.y1 <= B.y0 + .01) return eyeM[1] > A.y1 && eyeM[1] < B.y0 ? null : [[0, 1, 0], (A.y1 + B.y0) / 2];
+  if (B.y1 <= A.y0 + .01) return eyeM[1] > B.y1 && eyeM[1] < A.y0 ? null : [[0, -1, 0], -(B.y1 + A.y0) / 2];
+  return null;
 }
-/* Le plateau est-il vu par sa face extérieure ? */
-function outerVisible(p){ return dot(T([0, p.sg, 0]), sub(eye, T([0, p.yOut, 0]))) > 0; }
+function drawOrder(eyeM){
+  const before = (A, B) => { const p = sep(A, B, eyeM); return !!p && dot(p[0], eyeM) > p[1]; }; // A passe avant B
+  const left = MODEL.objs.slice(), out = [];
+  while (left.length){
+    // le morceau qu'aucun autre ne doit précéder (en secours : celui qui en a le moins)
+    const waits = left.map(a => left.filter(b => b !== a && before(b, a)).length);
+    out.push(left.splice(waits.indexOf(Math.min(...waits)), 1)[0]);
+  }
+  return out;
+}
+function neckGlint(){
+  const n = proj(T([0, 0, 0])), g = ctx.createRadialGradient(n[0], n[1], 0, n[0], n[1], 9);
+  g.addColorStop(0, "rgba(255,252,235,.95)"); g.addColorStop(.4, "rgba(255,225,160,.35)"); g.addColorStop(1, "rgba(255,210,140,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n[0], n[1], 9, 0, 7); ctx.fill();
+}
 
 function render3d(now){
   if (!CW || !MODEL) return;
@@ -346,22 +392,12 @@ function render3d(now){
   streamA += (target - streamA) * .12;
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, CW, CH);
-  const byZ = (a, b) => a.z - b.z;
-  // Ordre de dessin, du plus loin au plus proche :
-  // plateau vu de l'intérieur, colonnettes de derrière, verre et sable, colonnettes de devant, plateau vu de l'extérieur.
-  const plates = [MODEL.top, MODEL.bot].map(p => ({ p, out:outerVisible(p) }));
-  for (const { p, out } of plates){ if (out) drawSolid(p.step); else { drawSolid(p.cap); drawSolid(p.slab); drawSolid(p.step); } }
-  const posts = MODEL.posts.map(p => ({ p, z:T(p.c)[2] })).sort(byZ);
-  posts.filter(o => o.z < 0).forEach(o => drawPost(o.p));
-  [-1, 1].map(sg => ({ sg, z:T([0, sg * G.H / 2, 0])[2] })).sort(byZ).forEach(c => drawChamber(c.sg, now));
-
-  // reflet au goulot
-  const n = proj(T([0, 0, 0])), g = ctx.createRadialGradient(n[0], n[1], 0, n[0], n[1], 9);
-  g.addColorStop(0, "rgba(255,252,235,.95)"); g.addColorStop(.4, "rgba(255,225,160,.35)"); g.addColorStop(1, "rgba(255,210,140,0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n[0], n[1], 9, 0, 7); ctx.fill();
-
-  posts.filter(o => o.z >= 0).forEach(o => drawPost(o.p));
-  for (const { p, out } of plates) if (out){ drawSolid(p.slab); drawSolid(p.cap); }
+  const eyeM = [dot(ex, eye), dot(ey, eye), dot(ez, eye)]; // l'œil dans le repère du sablier
+  let chambers = 0;
+  for (const o of drawOrder(eyeM)){
+    if (o.chamber){ drawChamber(o.chamber, now); if (++chambers === 2) neckGlint(); } // reflet au goulot
+    else o.draw();
+  }
 }
 
 /* Temps écoulé (0 → 1) → forme du tas, en unités où la base fait 1.
