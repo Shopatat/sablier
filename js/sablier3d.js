@@ -16,24 +16,25 @@ const GLYPHS = [
   '<path d="M3 7.5Q12 3.5 21 6.5"/><path d="M3 12Q12 6.5 21 12Q12 16 3 12z"/><circle cx="12" cy="11.6" r="2.3" class="f"/><path d="M10.5 15.5L8.5 24M14 15.5q1.5 7 6 6.5q2-.6.6-2.6"/>',
   '<path d="M8 4.5q4-3 8 0M7 7.5h10M7 10.5h10M7 13.5h10M10 13.5v12M14 13.5v12M7.5 26.5h9"/>',
   '<path d="M9.5 8q2.5-4 5 0z"/><ellipse cx="12" cy="17.5" rx="5.5" ry="7.5"/><path d="M12 10v15M6.5 13.5l-4-2.5M6.3 18.5l-4 1.5M7.5 23l-3.5 3M17.5 13.5l4-2.5M17.7 18.5l4 1.5M16.5 23l3.5 3"/>',
-  '<path d="M11 27.5C9.5 20 9 12 10.5 5C11.5 2.5 15 2.5 16.5 5.5C15 6 14 7 13.8 9C13.5 15 13 21 11 27.5z"/><path d="M11.4 24C11.2 18 11.4 12 12.2 7"/>',
+  '<g transform="translate(-1 0)"><path d="M11 27.5C9.5 20 9 12 10.5 5C11.5 2.5 15 2.5 16.5 5.5C15 6 14 7 13.8 9C13.5 15 13 21 11 27.5z"/><path d="M11.4 24C11.2 18 11.4 12 12.2 7"/></g>',
   '<circle cx="12" cy="13" r="6.5"/><circle cx="12" cy="13" r="2" class="f"/><path d="M5 23h14"/>',
   '<path d="M2 11l2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5M2 16l2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5M2 21l2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5 2.5-2.5 2.5 2.5"/>',
   '<path d="M12 27V17"/><path d="M12 17C7 16.5 5 11 6.5 6.5c2 3 4.5 6 5.5 10.5c1-4.5 3.5-7.5 5.5-10.5C19 11 17 16.5 12 17z"/><path d="M12 16.5C10.8 12 11 8 12 4c1 4 1.2 8 0 12.5"/><path d="M8 27h8"/>',
-  '<path d="M11 27V9"/><path d="M11 9c0-3 2-4.5 4.5-4l1.5 3.5"/><path d="M11 27l-2.5-2.5M11 27l2.5-2.5"/>'
+  '<g transform="translate(-.5 0)"><path d="M11 27V9"/><path d="M11 9c0-3 2-4.5 4.5-4l1.5 3.5"/><path d="M11 27l-2.5-2.5M11 27l2.5-2.5"/></g>'
 ];
 const svgOf = (w, h, body, col, sw) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"><style>.f{fill:${col}}</style>${body}</svg>`);
 // Frise des côtés : neuf signes séparés par de fins filets, entre deux traits
-const BAND_W = 4 + GLYPHS.length * 28;
+const BAND_W = GLYPHS.length * 28;
 const bandBody = '<path d="M0 1.2H' + BAND_W + 'M0 28.8H' + BAND_W + '" stroke-width="1"/>' +
-  GLYPHS.map((g, i) => `<g transform="translate(${4 + i * 28} 0)">${g}</g><path d="M${2 + i * 28} 5v20" stroke-width=".6"/>`).join("");
+  GLYPHS.map((g, i) => `<g transform="translate(${2 + i * 28} 0)">${g}</g><path d="M${i * 28 + .3} 5v20" stroke-width=".6"/>`).join("") +
+  `<path d="M${BAND_W - .3} 5v20" stroke-width=".6"/>`;
 // Panneau du dessus : double cadre en creux et disque solaire ailé au centre
 const wing = '<path d="M158 172C128 156 92 150 56 158c10 7 12 13 8 21c32-2 64 2 94 10"/>' +
   '<path d="M150 173C124 163 96 160 70 165M150 181C124 175 98 172 72 174M152 187C128 183 104 181 80 182"/>' +
   '<path d="M64 179l-6 7M80 182l-5 8M96 183l-4 8M112 185l-3 8M128 186l-2 8"/>';
 const panelBody = '<rect x="26" y="26" width="308" height="308" rx="3" stroke-width="3"/><rect x="38" y="38" width="284" height="284" rx="2" stroke-width="1.4"/>' +
-  '<g transform="translate(180 178) scale(1.3) translate(-180 -178)">' +
+  '<g transform="translate(180 181.5) scale(1.3) translate(-180 -178)">' +
   wing + '<g transform="translate(360 0) scale(-1 1)">' + wing + '</g>' +
   '<circle cx="180" cy="176" r="20" stroke-width="2.6"/><circle cx="180" cy="176" r="12" stroke-width="1.6"/>' +
   '<path d="M166 192q-3 8 2 12M194 192q3 8-2 12" stroke-width="2"/></g>';
@@ -52,7 +53,7 @@ function engrave(c, d, l, x, y, w, h, off, a){
 const cvs = $("#hg"), ctx = cvs.getContext("2d"), scene = $("#scene"), app = $("#app");
 const DEG = Math.PI / 180, K = Math.tan(32 * DEG), CN = 32, PERSP = 1100, TAU = 2 * Math.PI;
 let G = null, MODEL = null, CW = 0, CH = 0, DPR = 1, strip = null, panel = null, grain = null;
-let sandFrac = 1, flipT0 = 0, streamA = 0;
+let sandFrac = 1, flipT0 = 0, flipDir = 1, streamA = 0;
 
 function build(){
   const r = scene.getBoundingClientRect();
@@ -78,11 +79,7 @@ function makeBand(){
   if (Object.keys(art).length < 4 || !G) return;
   const sc = 3, w = Math.round(G.W * sc), h = Math.round(G.T * sc);
   strip = document.createElement("canvas"); strip.width = w; strip.height = h;
-  const c = strip.getContext("2d");
-  const g = c.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, "rgba(255,246,205,.6)"); g.addColorStop(.12, "rgba(255,246,205,0)");
-  g.addColorStop(.86, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(40,24,4,.5)");
-  c.fillStyle = g; c.fillRect(0, 0, w, h);
+  const c = strip.getContext("2d"); // juste les gravures : le reflet des arêtes est dessiné sur la face (voir drawFace)
   const bh = h * .62, bw = bh * BAND_W / 30, n = Math.max(1, Math.round(w / bw)), bw2 = w / n;
   for (let i = 0; i < n; i++) engrave(c, art.bandD, art.bandL, i * bw2, (h - bh) / 2, bw2, bh, sc * .45, .85);
   makePanel();
@@ -91,7 +88,6 @@ function makeBand(){
 function makePanel(){
   const n = 540, p = document.createElement("canvas"); p.width = p.height = n;
   const c = p.getContext("2d");
-  c.fillStyle = "rgba(90,60,18,.07)"; c.fillRect(n * 38 / 360, n * 38 / 360, n * 284 / 360, n * 284 / 360);
   engrave(c, art.panelD, art.panelL, 0, 0, n, n, 2, .8);
   panel = p;
 }
@@ -186,20 +182,47 @@ function drawFace(f){
     return;
   }
   ctx.fillStyle = shade(f.flat ? GOLDT : GOLD, f, L_PLATE); ctx.fill();
-  if (strip && f.band){
-    const [a, b, c] = f.band.map(p => proj(T(p)));
-    ctx.save(); path(f.Q); ctx.clip();
-    ctx.transform((b[0]-a[0]) / strip.width, (b[1]-a[1]) / strip.width, (c[0]-a[0]) / strip.height, (c[1]-a[1]) / strip.height, a[0], a[1]);
-    ctx.globalAlpha = .95; ctx.drawImage(strip, 0, 0); ctx.restore();
-    path(f.Q);
+  if (f.band){ // arête du haut qui accroche la lumière, arête du bas dans l'ombre
+    const [a, , c] = f.band.map(p => proj(T(p))), g = ctx.createLinearGradient(a[0], a[1], c[0], c[1]);
+    g.addColorStop(0, "rgba(255,246,205,.6)"); g.addColorStop(.12, "rgba(255,246,205,0)");
+    g.addColorStop(.86, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(40,24,4,.5)");
+    ctx.fillStyle = g; ctx.fill();
   }
-  ctx.strokeStyle = "rgba(60,38,10,.55)"; ctx.lineWidth = .8; ctx.stroke();
-  if (f.deco && panel){ // panneau gravé sur la face extérieure
-    const [a, b, c] = f.panel.map(p => proj(T(p)));
-    ctx.save(); path(f.Q); ctx.clip();
-    ctx.transform((b[0]-a[0]) / panel.width, (b[1]-a[1]) / panel.width, (c[0]-a[0]) / panel.height, (c[1]-a[1]) / panel.height, a[0], a[1]);
-    ctx.drawImage(panel, 0, 0); ctx.restore();
+  if (strip && f.band) texture(strip, f.band, 8, 1, .95);
+  if (f.deco && panel) texture(panel, f.panel, 4, 4, 1); // panneau gravé sur la face extérieure
+  path(f.Q); ctx.strokeStyle = "rgba(60,38,10,.55)"; ctx.lineWidth = .8; ctx.stroke();
+}
+/* Plaque une image sur une face en suivant la perspective. Le canvas ne sait faire que des
+   déformations « plates » : on découpe donc la face en petits triangles, chacun placé
+   exactement par ses trois coins. Sans ça, le décor glissait vers un bord. */
+function texture(img, [o, px, py], nx, ny, alpha){
+  const W = img.width, H = img.height, ex = sub(px, o), ey = sub(py, o), S = [];
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++)
+    S.push(proj(T(addv(o, addv(ex.map(v => v * i / nx), ey.map(v => v * j / ny))))));
+  const at = (i, j) => S[j * (nx + 1) + i];
+  ctx.save(); ctx.globalAlpha = alpha;
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++){
+    const u0 = W * i / nx, u1 = W * (i + 1) / nx, v0 = H * j / ny, v1 = H * (j + 1) / ny;
+    tri(img, at(i, j), at(i + 1, j), at(i, j + 1), [u0, v0], [u1, v0], [u0, v1], u0, v0, u1, v1);
+    tri(img, at(i + 1, j + 1), at(i, j + 1), at(i + 1, j), [u1, v1], [u0, v1], [u1, v0], u0, v0, u1, v1);
   }
+  ctx.restore();
+}
+function tri(img, s0, s1, s2, t0, t1, t2, u0, v0, u1, v1){
+  // transformation image → écran qui envoie t0, t1, t2 sur s0, s1, s2
+  const a = t1[0] - t0[0], b = t2[0] - t0[0], c = t1[1] - t0[1], d = t2[1] - t0[1], det = a * d - b * c;
+  if (Math.abs(det) < 1e-9) return;
+  const X1 = s1[0] - s0[0], X2 = s2[0] - s0[0], Y1 = s1[1] - s0[1], Y2 = s2[1] - s0[1];
+  const m11 = (X1 * d - X2 * c) / det, m12 = (X2 * a - X1 * b) / det, m21 = (Y1 * d - Y2 * c) / det, m22 = (Y2 * a - Y1 * b) / det;
+  // triangle de découpe un peu agrandi, pour ne pas laisser de fente entre deux morceaux
+  const cx = (s0[0] + s1[0] + s2[0]) / 3, cy = (s0[1] + s1[1] + s2[1]) / 3;
+  const grow = p => { const dx = p[0] - cx, dy = p[1] - cy, l = Math.hypot(dx, dy) || 1; return [p[0] + dx / l * .6, p[1] + dy / l * .6]; };
+  ctx.save(); path([s0, s1, s2].map(grow)); ctx.clip();
+  ctx.transform(m11, m21, m12, m22, s0[0] - m11 * t0[0] - m12 * t0[1], s0[1] - m21 * t0[0] - m22 * t0[1]);
+  const m = 2; // un peu de marge autour du morceau d'image
+  const sx = Math.max(0, u0 - m), sy = Math.max(0, v0 - m), sw = Math.min(img.width, u1 + m) - sx, sh = Math.min(img.height, v1 + m) - sy;
+  ctx.drawImage(img, sx, sy, sw, sh, sx, sy, sw, sh);
+  ctx.restore();
 }
 function drawSolid(F){ const vis = []; for (const f of F){ prep(f); if (f.front){ drawFace(f); vis.push(f); } } return vis; }
 
@@ -380,7 +403,11 @@ function render3d(now){
     rx: 4.5 * Math.sin(t * P2 / 12.9 + 2) * DEG
   };
   let flip = 0;
-  if (flipT0){ const u = Math.min(1, (now - flipT0) / 1500); flip = Math.PI * (u < .5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3) / 2); }
+  if (flipT0){
+    const u = Math.min(1, (now - flipT0) / 1500);
+    flip = flipDir * Math.PI * (u < .5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3) / 2);
+    if (u >= .5) sandFrac = 0; // à l'horizontale, le sable passe dans l'ampoule qui finira en haut
+  }
   const M = p => rX(rY(rZ(rX(rZ(p, flip), ang.rx), ang.rz), ang.ry), ang.tx);
   const ex = M([1, 0, 0]), ey = M([0, 1, 0]), ez = M([0, 0, 1]);
   T = p => [ex[0]*p[0] + ey[0]*p[1] + ez[0]*p[2], ex[1]*p[0] + ey[1]*p[1] + ez[1]*p[2], ex[2]*p[0] + ey[2]*p[1] + ez[2]*p[2]];

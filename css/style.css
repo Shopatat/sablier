@@ -6,7 +6,7 @@
   --tomb:#140d08; --tomb-2:#2a1a0e; --wall:#21150c;
   --gold:#c9a24e; --gold-hi:#f3d993; --gold-lo:#6e4f1c; --gold-ink:#4a3210;
   --glass:205,212,222; --sand:#e4c070; --sand-dk:#a77c35; --sand-hi:#f6dc9a; --grain-rgb:240,205,125;
-  --torch:#ff9b3d; --neon:#a77bff; --neon-2:#6fd3ff;
+  --torch:#ff9b3d;
   --text:#f0e3c6; --muted:#ad9876; --line:rgba(201,162,78,.28);
   --font-display:"Marcellus","Cormorant Garamond","Trajan Pro",Georgia,serif;
   --font-ui:"Jost","Avenir Next","Segoe UI",system-ui,sans-serif;
@@ -54,28 +54,14 @@ body{
 .torch.t2{ left:92%; top:22%; }
 .torch .core{ position:absolute; left:50%; top:50%; width:9vmin; height:9vmin; transform:translate(-50%,-50%); border-radius:50%;
   background:radial-gradient(circle, #fff3c4 0%, #ffbe5c 35%, rgba(255,140,40,0) 70%); filter:blur(2px); }
-.streak{ position:absolute; top:-5%; height:110%; width:2px; border-radius:2px;
-  background:linear-gradient(to bottom, transparent, rgba(167,123,255,.9) 18%, rgba(140,90,255,.55) 60%, transparent);
-  box-shadow:0 0 8px 1px rgba(150,100,255,.6), 0 0 22px 2px rgba(120,80,255,.25);
-  opacity:.0; animation:streak var(--d,14s) ease-in-out var(--delay,0s) infinite;
+/* Hiéroglyphes gravés dans la pierre du mur : discrets, sans néon, pour laisser le sablier au centre */
+.glyph{ position:absolute; fill:none; stroke:#e8c98a; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;
+  opacity:.1; filter:drop-shadow(1px 1px 0 rgba(0,0,0,.7));
 }
-@keyframes streak{
-  0%{ opacity:0; transform:translateX(0) }
-  20%{ opacity:var(--o,.55) }
-  50%{ opacity:calc(var(--o,.55) * .5); transform:translateX(var(--dx,12px)) }
-  80%{ opacity:var(--o,.55) }
-  100%{ opacity:0; transform:translateX(0) }
-}
-.glyph{ position:absolute; fill:none; stroke:var(--neon); stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;
-  filter:drop-shadow(0 0 3px rgba(167,123,255,.9)) drop-shadow(0 0 12px rgba(120,80,255,.55));
-  opacity:.3; animation:hum 6s ease-in-out infinite alternate;
-}
-.glyph.warm{ stroke:#ffc77a; filter:drop-shadow(0 0 3px rgba(255,190,110,.9)) drop-shadow(0 0 14px rgba(255,140,50,.5)); }
-@keyframes hum{ 0%{opacity:var(--lo,.22)} 60%{opacity:var(--hi,.42)} 63%{opacity:calc(var(--lo,.22) * .6)} 66%{opacity:var(--hi,.42)} 100%{opacity:var(--lo,.22)} }
-.g-ankh{ left:3%; top:34%; width:clamp(48px,11vmin,110px); --lo:.18; --hi:.4; }
-.g-eye{ right:4%; top:8%; width:clamp(90px,22vmin,220px); animation-delay:-2s; }
-.g-scarab{ left:5%; bottom:16%; width:clamp(60px,13vmin,130px); --lo:.16; --hi:.34; animation-delay:-4s; }
-.g-djed{ right:5%; bottom:20%; width:clamp(40px,9vmin,90px); animation-delay:-1s; }
+.g-ankh{ left:3%; top:34%; width:clamp(48px,11vmin,110px); }
+.g-eye{ right:4%; top:8%; width:clamp(90px,22vmin,220px); }
+.g-scarab{ left:5%; bottom:16%; width:clamp(60px,13vmin,130px); }
+.g-djed{ right:5%; bottom:20%; width:clamp(40px,9vmin,90px); }
 #dust{ position:absolute; inset:0; width:100%; height:100%; }
 .vignette{ position:absolute; inset:0; background:radial-gradient(130% 90% at 50% 50%, transparent 45%, rgba(0,0,0,.75) 100%); }
 
@@ -101,7 +87,7 @@ body{
 button:focus-visible, input:focus-visible{ outline:2px solid var(--gold-hi); outline-offset:3px; }
 
 /* ---------- Le sablier ---------- */
-.scene{ position:relative; flex:1; width:100%; min-height:0; }
+.scene{ position:relative; flex:1; width:100%; min-height:0; touch-action:none; } /* le glissé retourne le sablier, pas la page */
 .halo{ position:absolute; left:50%; top:50%; width:var(--halo,420px); height:var(--halo,420px); transform:translate(-50%,-50%);
   border-radius:50%; background:radial-gradient(circle, rgba(255,235,200,.16), rgba(255,160,70,.07) 42%, transparent 70%); pointer-events:none; }
 #hg{ position:absolute; inset:0; width:100%; height:100%; display:block; }
@@ -176,6 +162,6 @@ input[type=range]::-moz-range-thumb{ width:22px; height:22px; border:0; border-r
 kbd{ font-family:var(--font-ui); border:1px solid var(--line); border-radius:5px; padding:0 5px; color:var(--text); }
 
 @media (prefers-reduced-motion: reduce){
-  .streak,.glyph,.paused .time{ animation:none !important; }
+  .paused .time{ animation:none !important; }
 }
 @media (min-height:820px) and (min-width:700px){ .app{ padding-top:24px; padding-bottom:28px; } }

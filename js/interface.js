@@ -54,6 +54,18 @@ toggleBtn.addEventListener("click", () => st.running ? pause() : start());
 $("#reset").addEventListener("click", reset);
 $("#skip").addEventListener("click", () => finish(false));
 document.querySelectorAll(".mode").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+/* Glisser le doigt vers le haut ou le bas sur le sablier le retourne et relance la session.
+   Le sens de rotation suit le geste : vers le bas à droite, il tourne dans le sens des aiguilles d'une montre. */
+let swipe = null;
+scene.addEventListener("pointerdown", e => { swipe = { x:e.clientX, y:e.clientY, t:performance.now() }; });
+scene.addEventListener("pointerup", e => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y, quick = performance.now() - swipe.t < 900;
+  const r = scene.getBoundingClientRect(), right = swipe.x > r.left + r.width / 2;
+  swipe = null;
+  if (quick && Math.abs(dy) > 50 && Math.abs(dy) > 1.5 * Math.abs(dx)) flipRestart((dy > 0) === right ? 1 : -1);
+});
+scene.addEventListener("pointercancel", () => { swipe = null; });
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && body.classList.contains("open")) return closeSheet();
   if (body.classList.contains("open") || e.metaKey || e.ctrlKey || e.altKey) return;

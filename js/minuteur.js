@@ -43,16 +43,26 @@ function finish(natural){
   if (was === "focus"){ st.done++; next = st.done >= cfg.every ? "long" : "short"; }
   else { if (was === "long") st.done = 0; next = "focus"; }
   sandFrac = 0;
-  // On retourne le sablier : une fois à l'envers, le sable plein se retrouve en haut.
-  turning = true; render(); app.classList.add("idle");
-  const done = () => {
-    flipT0 = 0; turning = false;
+  turnOver(1, () => {
     st.mode = next; st.remaining = total(next); saveState();
     draw(true); render();
     if (next === "focus" ? cfg.autoFocus : cfg.autoBreak) start(); else wakeOff();
-  };
-  if (reduced){ setTimeout(done, 300); }
-  else { flipT0 = performance.now(); setTimeout(done, 1560); }
+  });
+}
+/* On retourne le sablier (dir : 1 sens des aiguilles d'une montre, -1 l'autre sens).
+   À mi-course, tout le sable passe dans l'ampoule qui va se retrouver en haut (voir render3d). */
+function turnOver(dir, done){
+  turning = true; flipDir = dir; render(); app.classList.add("idle");
+  const end = () => { flipT0 = 0; turning = false; done(); };
+  if (reduced){ sandFrac = 0; setTimeout(end, 300); }
+  else { flipT0 = performance.now(); setTimeout(end, 1560); }
+}
+/* Retourner le sablier d'un glissé : la session en cours repart du début. */
+function flipRestart(dir){
+  if (turning) return;
+  ensureAudio(); // pendant le geste, sinon l'iPhone bloque le son
+  st.running = false; ambient(false);
+  turnOver(dir, () => { st.remaining = total(st.mode); saveState(); draw(true); start(); });
 }
 
 /* ---------------- Affichage ---------------- */

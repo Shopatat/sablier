@@ -22,17 +22,11 @@
   <div class="blocks"></div><div class="blocks offset"></div>
   <div class="torch t1" id="t1"><div class="core"></div></div>
   <div class="torch t2" id="t2"><div class="core"></div></div>
-  <div class="streak" style="left:9%;--d:13s;--o:.5;--dx:10px"></div>
-  <div class="streak" style="left:12%;--d:17s;--delay:-6s;--o:.35;--dx:-8px"></div>
-  <div class="streak" style="left:30%;--d:19s;--delay:-3s;--o:.28;--dx:14px;width:1px"></div>
-  <div class="streak" style="left:71%;--d:15s;--delay:-9s;--o:.3;--dx:-12px;width:1px"></div>
-  <div class="streak" style="left:88%;--d:12s;--delay:-2s;--o:.5;--dx:9px"></div>
-  <div class="streak" style="left:93%;--d:21s;--delay:-11s;--o:.38;--dx:-6px"></div>
 
   <svg class="glyph g-ankh" viewBox="0 0 60 122"><path d="M30 44C13 42 11 6 30 4c19 2 17 38 0 40z"/><path d="M7 52h46M30 44v72M22 117h16"/></svg>
-  <svg class="glyph g-eye warm" viewBox="0 0 140 82"><path d="M10 18Q70-2 130 16"/><path d="M14 38Q70 6 126 36Q70 58 14 38z"/><circle cx="70" cy="36" r="12"/><path d="M64 50l-7 26M84 50q12 22 28 16q8-6 0-10"/></svg>
+  <svg class="glyph g-eye" viewBox="0 0 140 82"><path d="M10 18Q70-2 130 16"/><path d="M14 38Q70 6 126 36Q70 58 14 38z"/><circle cx="70" cy="36" r="12"/><path d="M64 50l-7 26M84 50q12 22 28 16q8-6 0-10"/></svg>
   <svg class="glyph g-scarab" viewBox="0 0 100 124"><circle cx="50" cy="18" r="14"/><path d="M40 46q10-14 20 0"/><ellipse cx="50" cy="74" rx="22" ry="30"/><path d="M50 46v58M29 60l-17-8M29 76l-19 3M31 92l-14 14M71 60l17-8M71 76l19 3M69 92l14 14"/></svg>
-  <svg class="glyph g-djed warm" viewBox="0 0 60 142"><path d="M14 40q16-22 32 0M10 40h40M10 50h40M10 60h40M10 70h40M20 70v66M40 70v66M12 137h36"/></svg>
+  <svg class="glyph g-djed" viewBox="0 0 60 142"><path d="M14 40q16-22 32 0M10 40h40M10 50h40M10 60h40M10 70h40M20 70v66M40 70v66M12 137h36"/></svg>
   <canvas id="dust"></canvas>
   <div class="vignette"></div>
 </div>
@@ -49,7 +43,7 @@
     </button>
   </div>
 
-  <div class="scene" id="scene" aria-hidden="true">
+  <div class="scene" id="scene" role="img" aria-label="Sablier : glisse vers le haut ou le bas pour le retourner">
     <div class="halo" id="halo"></div>
     <canvas id="hg"></canvas>
   </div>
@@ -103,7 +97,7 @@
     <button class="textbtn" id="testSound">Écouter le gong</button>
   </div>
 
-  <div class="group keys">Raccourcis clavier : <kbd>Espace</kbd> démarrer ou mettre en pause, <kbd>R</kbd> recommencer, <kbd>N</kbd> passer à la suite.</div>
+  <div class="group keys">Glisse le doigt vers le haut ou le bas sur le sablier pour le retourner : la session repart du début.<br>Raccourcis clavier : <kbd>Espace</kbd> démarrer ou mettre en pause, <kbd>R</kbd> recommencer, <kbd>N</kbd> passer à la suite.</div>
 </section>
 
 <script src="js/reglages.js"></script>
