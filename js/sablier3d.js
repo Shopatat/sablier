@@ -53,15 +53,16 @@ function engrave(c, d, l, x, y, w, h, off, a){
 const cvs = $("#hg"), ctx = cvs.getContext("2d"), scene = $("#scene"), app = $("#app");
 const DEG = Math.PI / 180, K = Math.tan(32 * DEG), CN = 32, PERSP = 1100, TAU = 2 * Math.PI;
 let G = null, MODEL = null, CW = 0, CH = 0, DPR = 1, strip = null, panel = null, grain = null;
-let sandFrac = 1, flipT0 = 0, flipDir = 1;
+let sandFrac = 1, flipT0 = 0, flipDir = 1, dprCap = 2;
 // Filet : il coule depuis flowT0 ; s'il est coupé (pause, fin), il s'est arrêté à flowT1.
 // airMs : durée d'écoulement du sable encore en l'air (il n'est pas encore arrivé dans le tas).
 let flowOn = false, flowT0 = -1e9, flowT1 = -1e9, airMs = 0;
 
 function build(){
   const r = scene.getBoundingClientRect();
-  // jusqu'à 3 pixels réels par point : pleine définition de l'iPhone, pour les grains fins
-  DPR = Math.min(3, window.devicePixelRatio || 1); CW = r.width; CH = r.height;
+  // 2 pixels réels par point (3 sur l'iPhone coûtait 2,25 fois plus cher pour une différence
+  // invisible à l'œil) ; moins si l'appareil n'arrive pas à suivre (voir watchPerf)
+  DPR = Math.min(dprCap, window.devicePixelRatio || 1); CW = r.width; CH = r.height;
   cvs.width = Math.max(1, Math.round(CW * DPR)); cvs.height = Math.max(1, Math.round(CH * DPR));
   const S = Math.max(80, Math.min(CH * .36, CW * .5, 260));
   // S : côté de la base du verre, H : hauteur d'une ampoule, T : épaisseur d'un plateau, W : sa largeur
@@ -176,6 +177,7 @@ function prep(f){
   f.Q = f.P.map(proj);
   return f;
 }
+function area(Q){ let a = 0; for (let i = 0, n = Q.length; i < n; i++){ const p = Q[i], q = Q[(i + 1) % n]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a) / 2; }
 function poly(Q){ ctx.moveTo(Q[0][0], Q[0][1]); for (let i = 1; i < Q.length; i++) ctx.lineTo(Q[i][0], Q[i][1]); ctx.closePath(); }
 function path(Q){ ctx.beginPath(); poly(Q); }
 function drawFace(f){
@@ -192,8 +194,9 @@ function drawFace(f){
     g.addColorStop(.86, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(40,24,4,.5)");
     ctx.fillStyle = g; ctx.fill();
   }
-  if (strip && f.band) texture(strip, f.band, 8, 1, .95);
-  if (f.deco && panel) texture(panel, f.panel, 4, 4, 1); // panneau gravé sur la face extérieure
+  const big = area(f.Q) > 60; // face vue presque par la tranche : gravures invisibles, on les saute
+  if (big && strip && f.band) texture(strip, f.band, 4, 1, .95);
+  if (big && f.deco && panel) texture(panel, f.panel, 3, 3, 1); // panneau gravé sur la face extérieure
   path(f.Q); ctx.strokeStyle = "rgba(60,38,10,.55)"; ctx.lineWidth = .8; ctx.stroke();
 }
 /* Plaque une image sur une face en suivant la perspective. Le canvas ne sait faire que des
@@ -239,12 +242,19 @@ function grainOn(F){
     const p0 = f.pts[0], U = nrm(sub(f.pts[1], p0)), V = cross(f.n, U), L = 8;
     const s0 = proj(T(p0)), su = proj(T(addv(p0, U.map(x => x * L)))), sv = proj(T(addv(p0, V.map(x => x * L))));
     try{ grain.setTransform(new DOMMatrix([(su[0]-s0[0]) / L, (su[1]-s0[1]) / L, (sv[0]-s0[0]) / L, (sv[1]-s0[1]) / L, s0[0], s0[1]])); }catch(e){}
-    ctx.fillStyle = grain; path(f.Q);
+    ctx.fillStyle = grain; f.path ? f.path() : path(f.Q);
     ctx.fill();
   }
   ctx.restore();
 }
-function drawSand(F){ const vis = drawSolid(F); grainOn(vis); return vis; }
+function drawSand(F, one){
+  const vis = drawSolid(F);
+  if (one && vis.length){ // cône : le grain d'une facette suffit pour toutes (personne ne voit la différence sur un tas)
+    const f = vis[vis.length >> 1];
+    grainOn([{ pts:f.pts, n:f.n, Q:null, path:() => { ctx.beginPath(); for (const v of vis) poly(v.Q); } }]);
+  } else grainOn(vis);
+  return vis;
+}
 
 /* Reflets de fenêtre sur une face de verre : ils glissent quand la face tourne */
 function streaks(f){
@@ -342,45 +352,59 @@ function flowNow(){ // débit en px³ par ms
   const r = sandFrac, Vc = Math.pow(.925 * G.S, 2) * G.H / 3;
   return (realFlow() ? 1 : 3 * r * r) * Vc / sessionLen();
 }
+const NECK_V = .12; // vitesse des grains à la sortie du goulot (ils ne partent pas tout à fait de l'arrêt)
+const fallY = (L, p) => L * p * (NECK_V + (1 - NECK_V) * p); // hauteur tombée après la part p de la chute
 function drawStream(apexY, now){
   const L = apexY - 1; if (L < 3) return;
   const { S, H } = G, c = `rgba(${GRAINRGB},`, at = p => proj(T(p));
-  const fall = FALL * Math.sqrt(L / H);              // chute libre : y = L·(t/fall)²
+  const fall = FALL * Math.sqrt(L / H);
   // Tête du filet (elle descend en accélérant quand ça se met à couler) et queue (elle quitte
   // le goulot quand ça s'arrête), en part de la chute : 0 au goulot, 1 en bas.
   const pHead = Math.min(1, (now - flowT0) / fall), pTail = flowOn ? 0 : Math.min(1, Math.max(0, (now - flowT1) / fall));
   if (pHead <= pTail) return;
-  const yHead = L * pHead * pHead, yTail = L * pTail * pTail;
+  const yHead = fallY(L, pHead), yTail = fallY(L, pTail);
   const k = PERSP / (PERSP - T([0, L / 2, 0])[2]), p0 = at([0, yTail, 0]), p1 = at([0, yHead, 0]);
-  const q = flowNow(), vMid = Math.SQRT2 * L / fall; // débit, vitesse à mi-hauteur
-  // Largeur du filet : section = débit / vitesse. Plafonnée pour les sessions très courtes.
+  const q = flowNow(), vMid = (1 + NECK_V) * L / fall; // débit, vitesse à mi-hauteur
+  /* Comme un robinet plus ou moins ouvert : moins de débit, c'est un filet plus fin ET moins de
+     grains qui passent chaque seconde, mais ils tombent toujours aussi vite.
+     Largeur : section = débit / vitesse, plafonnée pour les sessions très courtes.
+     Grains en l'air en même temps : de quelques-uns (filet qui s'épuise, très longue session)
+     à environ 220 (session d'une minute). */
   const w = Math.min(2 * Math.sqrt(q / vMid / Math.PI), .02 * S);
-  // Grains en l'air : le sable qui tombe pendant une chute, en grains d'environ 0,35 px³.
-  const NMAX = 260, keep = Math.min(1, q * fall / .35 / NMAX);
+  const nAir = Math.min(220, 38 * Math.pow(q, .55)), DT = 4, per = nAir / fall * DT; // grains lâchés toutes les 4 ms
   ctx.save(); ctx.lineCap = "round";
-  // corps du filet, ombré comme un petit cylindre (seulement s'il est assez épais pour se voir en continu)
-  if (w > .5 && yHead - yTail > 1){
+  // corps du filet, ombré comme un petit cylindre : seulement quand les grains sont assez serrés pour former un trait continu
+  const body = Math.min(1, Math.max(0, (nAir - 50) / 120)) * Math.min(1, Math.max(0, (w - .5) / 1.2));
+  if (body > .02 && yHead - yTail > 1){
     const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l, hw = w * k / 2;
-    const g = ctx.createLinearGradient(p0[0] - nx * hw, p0[1] - ny * hw, p0[0] + nx * hw, p0[1] + ny * hw), a = Math.min(1, (w - .5) / 1.2);
-    g.addColorStop(0, c + (.25 * a).toFixed(3) + ")"); g.addColorStop(.45, c + (.9 * a).toFixed(3) + ")"); g.addColorStop(1, c + (.3 * a).toFixed(3) + ")");
+    const g = ctx.createLinearGradient(p0[0] - nx * hw, p0[1] - ny * hw, p0[0] + nx * hw, p0[1] + ny * hw);
+    g.addColorStop(0, c + (.25 * body).toFixed(3) + ")"); g.addColorStop(.45, c + (.9 * body).toFixed(3) + ")"); g.addColorStop(1, c + (.3 * body).toFixed(3) + ")");
     ctx.beginPath(); ctx.moveTo(p0[0] - nx * hw * .6, p0[1] - ny * hw * .6); ctx.lineTo(p0[0] + nx * hw * .6, p0[1] + ny * hw * .6);
     ctx.lineTo(p1[0] + nx * hw, p1[1] + ny * hw); ctx.lineTo(p1[0] - nx * hw, p1[1] - ny * hw); ctx.closePath();
     ctx.fillStyle = g; ctx.fill();
   }
-  // grains : une réserve fixe de positions ; chaque grain n'apparaît que si le débit le demande
-  // (tiré au sort à chaque passage au goulot : rien ne clignote quand le débit change)
-  const paths = [new Path2D(), new Path2D(), new Path2D()];
-  for (let i = 0; i < NMAX; i++){
-    const u = now / fall + i / NMAX, cyc = Math.floor(u), p = u - cyc, seed = i * 7919 + cyc * 104729;
-    if (rnd(seed + 3) >= keep || p > pHead || p < pTail) continue;
-    const y = L * p * p, r = (w / 2) * Math.sqrt(rnd(seed)) + S * .004 * rnd(seed + 4) * p * p, an = rnd(seed + 1) * TAU;
-    const x = r * Math.cos(an), z = r * Math.sin(an), qd = at([x, y, z]), tail = Math.max(.4, 2 * L * p * 12 / fall); // traînée = vitesse × 12 ms
-    const qt = at([x, Math.max(0, y - tail), z]);
-    const P = paths[(rnd(seed + 2) * 3) | 0]; P.moveTo(qt[0], qt[1]); P.lineTo(qd[0], qd[1]);
+  /* Grains : le temps est découpé en créneaux de 4 ms ; dans chaque créneau, le goulot lâche
+     au hasard (tirage fixe) un nombre de grains qui suit le débit, à un instant au hasard du créneau.
+     Chaque grain garde ainsi sa place d'une image à l'autre et tombe à la vraie vitesse. */
+  const paths = [new Path2D(), new Path2D(), new Path2D()], M = Math.min(4, Math.ceil(per));
+  const tMin = Math.max(now - fall, flowT0), tMax = flowOn ? now : Math.min(now, flowT1);
+  for (let j = Math.floor(tMin / DT); j <= Math.floor(tMax / DT); j++){
+    for (let m = 0; m < M; m++){
+      const seed = j * 13.17 + m * 5023.3;
+      if (rnd(seed + 3) >= per - m) continue;
+      const te = (j + rnd(seed + 5)) * DT;
+      if (te < tMin || te > tMax) continue;
+      const p = (now - te) / fall, y = fallY(L, p);
+      const r = (w / 2) * Math.sqrt(rnd(seed)) + S * .004 * rnd(seed + 4) * p * p, an = rnd(seed + 1) * TAU;
+      const x = r * Math.cos(an), z = r * Math.sin(an), qd = at([x, y, z]);
+      const tail = Math.max(.4, L * (NECK_V + 2 * (1 - NECK_V) * p) * 12 / fall); // traînée = vitesse × 12 ms
+      const qt = at([x, Math.max(0, y - tail), z]);
+      const P = paths[(rnd(seed + 2) * 3) | 0]; P.moveTo(qt[0], qt[1]); P.lineTo(qd[0], qd[1]);
+    }
   }
   ["1", ".75", ".5"].forEach((al, j) => { ctx.strokeStyle = c + al + ")"; ctx.lineWidth = (.95 - j * .15) * k; ctx.stroke(paths[j]); });
-  // rebonds sur le tas, en nombre proportionnel au débit
-  const B = pHead < 1 || pTail >= 1 ? 0 : Math.min(24, Math.round(q * 6)), life = 320; // seulement quand le filet touche le tas
+  // rebonds sur le tas, en nombre proportionnel au débit (seulement quand le filet touche le tas)
+  const B = pHead < 1 || pTail >= 1 ? 0 : Math.min(24, Math.round(nAir / 9)), life = 320;
   ctx.fillStyle = c + ".85)";
   for (let i = 0; i < B; i++){
     const u = now / life + i / B, cyc = Math.floor(u), t = u - cyc, seed = i * 2731 + cyc * 7193;
@@ -399,7 +423,7 @@ function drawChamber(sg, now){
   if (sg < 0) drawTopSand();
   else {
     const hp = heapParts(sandFrac), above = hp.cap ? prep(hp.cap).front : true;
-    if (above){ drawSand(hp.fr); drawSand(hp.cone); } else { drawSand(hp.cone); drawSand(hp.fr); }
+    if (above){ drawSand(hp.fr); drawSand(hp.cone, true); } else { drawSand(hp.cone, true); drawSand(hp.fr); }
     drawStream(hp.apex, now);
   }
   drawGlass(gl, true);
@@ -429,8 +453,18 @@ function neckGlint(){
   ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n[0], n[1], 9, 0, 7); ctx.fill();
 }
 
+/* Si l'appareil n'arrive plus à suivre (plus d'une image sur deux en retard pendant
+   quelques secondes), on baisse la définition d'un cran : mieux vaut fluide que net et saccadé. */
+let perfLast = 0, perfSlow = 0;
+function watchPerf(now){
+  const dt = now - perfLast; perfLast = now;
+  if (dt <= 0 || dt > 250) return; // retour d'arrière-plan : ça ne compte pas
+  perfSlow += ((dt > 40 ? 1 : 0) - perfSlow) * .02;
+  if (perfSlow > .5 && dprCap > 1.25){ dprCap = dprCap > 1.5 ? 1.5 : 1.25; perfSlow = 0; build(); }
+}
 function render3d(now){
   if (!CW || !MODEL) return;
+  watchPerf(now);
   const t = now / 1000 + 4, P2 = 2 * Math.PI;
   const ang = reduced ? { bob:0, tx:-14 * DEG, ry:-24 * DEG, rz:0, rx:0 } : {
     bob: 7 * Math.sin(t * P2 / 11),

@@ -122,5 +122,6 @@ function loop(now){
   }
   draw(false);
   render3d(now || performance.now());
+  ambient2d(now || performance.now());
   requestAnimationFrame(loop);
 }

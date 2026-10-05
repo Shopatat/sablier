@@ -26,7 +26,7 @@ if (st.running){
   if (st.endAt <= Date.now()) finish(true, true); // finie appli fermée : comptée, sans gong en retard
   else { app.classList.remove("idle"); wakeOn(); }
 }
-requestAnimationFrame(loop); requestAnimationFrame(ambientLoop);
+requestAnimationFrame(loop);
 
 /* Mode hors ligne : une fois ouverte une première fois, l'appli marche sans réseau. */
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")){

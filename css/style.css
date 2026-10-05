@@ -40,20 +40,20 @@ body{
   background:
     radial-gradient(120% 70% at 50% 45%, var(--tomb-2) 0%, var(--wall) 38%, var(--tomb) 78%);
 }
-.blocks{ position:absolute; inset:0; opacity:.22; mix-blend-mode:overlay;
+.blocks{ position:absolute; inset:0; opacity:.13;
   background:
     repeating-linear-gradient(0deg, rgba(0,0,0,.55) 0 2px, transparent 2px 86px),
     repeating-linear-gradient(90deg, rgba(0,0,0,.4) 0 2px, transparent 2px 140px);
 }
-.blocks.offset{ opacity:.14; transform:translate(70px,43px); }
+.blocks.offset{ opacity:.08; transform:translate(70px,43px); }
 .torch{ position:absolute; width:70vmax; height:70vmax; border-radius:50%;
   background:radial-gradient(circle, rgba(255,170,80,.55) 0%, rgba(255,130,40,.22) 22%, rgba(180,70,20,.08) 45%, transparent 66%);
-  transform:translate(-50%,-50%); mix-blend-mode:screen; will-change:opacity,transform;
+  transform:translate(-50%,-50%); will-change:opacity;
 }
 .torch.t1{ left:8%; top:14%; }
 .torch.t2{ left:92%; top:22%; }
 .torch .core{ position:absolute; left:50%; top:50%; width:9vmin; height:9vmin; transform:translate(-50%,-50%); border-radius:50%;
-  background:radial-gradient(circle, #fff3c4 0%, #ffbe5c 35%, rgba(255,140,40,0) 70%); filter:blur(2px); }
+  background:radial-gradient(circle, #fff3c4 0%, #ffbe5c 30%, rgba(255,140,40,.4) 50%, rgba(255,140,40,0) 72%); }
 /* Hiéroglyphes gravés dans la pierre du mur : discrets, sans néon, pour laisser le sablier au centre */
 .glyph{ position:absolute; fill:none; stroke:#e8c98a; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round;
   opacity:.1; filter:drop-shadow(1px 1px 0 rgba(0,0,0,.7));
