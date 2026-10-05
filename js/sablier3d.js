@@ -57,7 +57,8 @@ let sandFrac = 1, flipT0 = 0, flipDir = 1, streamA = 0;
 
 function build(){
   const r = scene.getBoundingClientRect();
-  DPR = Math.min(2, window.devicePixelRatio || 1); CW = r.width; CH = r.height;
+  // jusqu'à 3 pixels réels par point : pleine définition de l'iPhone, pour les grains fins
+  DPR = Math.min(3, window.devicePixelRatio || 1); CW = r.width; CH = r.height;
   cvs.width = Math.max(1, Math.round(CW * DPR)); cvs.height = Math.max(1, Math.round(CH * DPR));
   const S = Math.max(80, Math.min(CH * .36, CW * .5, 260));
   // S : côté de la base du verre, H : hauteur d'une ampoule, T : épaisseur d'un plateau, W : sa largeur
@@ -297,8 +298,9 @@ function drawTopSand(){
 /* Sable du bas : un cône qui grossit, puis le fond qui se remplit avec un dôme dessus */
 function heapParts(frac){
   if (frac > .999) return { fr:[], cone:[], cap:null, apex:G.H };
-  const { S, H } = G, shp = heap(1 - frac);
-  const f = shp.y / (H / S), yl = H - f * H, hb = .925 * S / 2, ht = hb * (1 - f);
+  // En haut il reste frac³ du sable (pyramide de hauteur frac) : tout le reste est en bas.
+  const { S, H } = G, Sb = .925 * S, shp = heap(1 - frac * frac * frac);
+  const f = shp.y / (H / Sb), yl = H - f * H, hb = Sb / 2, ht = hb * (1 - f);
   const fr = []; let cap = null;
   if (f > .002){
     const b = [[-hb, H, -hb], [hb, H, -hb], [hb, H, hb], [-hb, H, hb]], t = b.map(p => [p[0] * (1 - f), yl, p[2] * (1 - f)]);
@@ -306,8 +308,8 @@ function heapParts(frac){
     for (let i = 0; i < 4; i++) fr.push(face([b[i], b[(i + 1) % 4], t[(i + 1) % 4], t[i]], inside, "sand"));
     if (ht > .4){ cap = face(t, inside, "sand"); fr.push(cap); }
   }
-  const rr = shp.R * S * .925, hh = K * shp.R * S, cone = [];
-  if (rr > .6){
+  const rr = shp.R * Sb, hh = K * rr, cone = [];
+  if (rr > .3){
     const apex = [0, yl - hh, 0], inside = [0, yl - hh / 4, 0];
     for (let i = 0; i < CN; i++){
       const a1 = i / CN * TAU, a2 = (i + 1) / CN * TAU;
@@ -321,44 +323,56 @@ function heapParts(frac){
    serrés au départ et un peu dispersés à l'arrivée, avec quelques rebonds sur le tas.
    Tout se calcule à partir de l'heure : rien à retenir d'une image à l'autre. */
 const rnd = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
-/* Débit du filet selon la durée réglée : plus la session est courte, plus le sable coule fort.
-   Échelle logarithmique bornée entre 1 min (1 : filet épais) et 180 min (0 : filet très fin mais
-   toujours visible), pour que ça reste crédible quelle que soit la durée. 25 min ≈ 0,38. */
-const FLOW_MIN = 1, FLOW_MAX = 180;
-function flowLevel(){
-  const m = Math.min(FLOW_MAX, Math.max(FLOW_MIN, total(st.mode) / 60000));
-  return 1 - Math.log(m / FLOW_MIN) / Math.log(FLOW_MAX / FLOW_MIN);
+/* Débit réel du sablier, en px³ par ms. Le niveau du haut baisse à vitesse constante :
+   il reste r³ du sable, il en part donc 3·r²·(volume d'une ampoule)/(durée) chaque milliseconde.
+   Le filet est plus fourni en début de session, quand il y a encore beaucoup de sable en haut,
+   et s'amenuise à la fin, jusqu'aux derniers grains. */
+const FALL = 260; // durée de chute du goulot jusqu'au fond (ms)
+function flowNow(){
+  const r = sandFrac, Vc = Math.pow(.925 * G.S, 2) * G.H / 3;
+  return 3 * r * r * Vc / total(st.mode);
 }
 function drawStream(apexY, now){
   if (streamA < .02) return;
   const L = apexY - 1; if (L < 3) return;
   const { S, H } = G, c = `rgba(${GRAINRGB},`, at = p => proj(T(p));
   const k = PERSP / (PERSP - T([0, L / 2, 0])[2]), p0 = at([0, 0, 0]), p1 = at([0, L, 0]);
-  const lv = flowLevel(), fall = 520 * Math.sqrt(L / H);  // débit (0 → 1), durée de la chute (ms)
-  const N = Math.round(30 + 210 * lv), spread = .006 + .03 * lv; // grains en l'air, largeur du filet en bas
+  const fall = FALL * Math.sqrt(L / H);              // chute libre : y = L·(t/fall)²
+  const q = flowNow(), vMid = Math.SQRT2 * L / fall; // débit, vitesse à mi-hauteur
+  // Largeur du filet : section = débit / vitesse. Plafonnée pour les sessions très courtes.
+  const w = Math.min(2 * Math.sqrt(q / vMid / Math.PI), .02 * S);
+  // Grains en l'air : le sable qui tombe pendant une chute, en grains d'environ 0,35 px³.
+  const NMAX = 260, keep = Math.min(1, q * fall / .35 / NMAX);
   ctx.save(); ctx.globalAlpha = streamA; ctx.lineCap = "round";
-  // cœur du filet : très fin, plus dense en haut
-  const g = ctx.createLinearGradient(p0[0], p0[1], p1[0], p1[1]);
-  g.addColorStop(0, c + (.55 + .4 * lv).toFixed(2) + ")"); g.addColorStop(.35, c + (.25 + .35 * lv).toFixed(2) + ")"); g.addColorStop(1, c + ".12)");
-  ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.strokeStyle = g; ctx.lineWidth = (.4 + 1.3 * lv) * k; ctx.stroke();
-  // grains : chacun laisse une petite traînée proportionnelle à sa vitesse
-  const paths = [new Path2D(), new Path2D(), new Path2D()];
-  for (let i = 0; i < N; i++){
-    const u = now / fall + i / N, cyc = Math.floor(u), p = u - cyc, seed = i * 7919 + cyc * 104729;
-    const y = L * p * p, r = S * spread * (.15 + .85 * rnd(seed)) * Math.pow(p, 1.6), an = rnd(seed + 1) * TAU;
-    const x = r * Math.cos(an), z = r * Math.sin(an), q = at([x, y, z]), tail = Math.max(.6, 2 * L * p * 16 / fall);
-    const qt = at([x, Math.max(0, y - tail), z]);
-    const P = paths[(rnd(seed + 2) * 3) | 0]; P.moveTo(qt[0], qt[1]); P.lineTo(q[0], q[1]);
+  // corps du filet, ombré comme un petit cylindre (seulement s'il est assez épais pour se voir en continu)
+  if (w > .5){
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l, hw = w * k / 2;
+    const g = ctx.createLinearGradient(p0[0] - nx * hw, p0[1] - ny * hw, p0[0] + nx * hw, p0[1] + ny * hw), a = Math.min(1, (w - .5) / 1.2);
+    g.addColorStop(0, c + (.25 * a).toFixed(3) + ")"); g.addColorStop(.45, c + (.9 * a).toFixed(3) + ")"); g.addColorStop(1, c + (.3 * a).toFixed(3) + ")");
+    ctx.beginPath(); ctx.moveTo(p0[0] - nx * hw * .6, p0[1] - ny * hw * .6); ctx.lineTo(p0[0] + nx * hw * .6, p0[1] + ny * hw * .6);
+    ctx.lineTo(p1[0] + nx * hw, p1[1] + ny * hw); ctx.lineTo(p1[0] - nx * hw, p1[1] - ny * hw); ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();
   }
-  ["1", ".7", ".45"].forEach((al, j) => { ctx.strokeStyle = c + al + ")"; ctx.lineWidth = (1.05 + .5 * lv - j * .2) * k; ctx.stroke(paths[j]); });
-  // rebonds sur le tas
-  const B = Math.round(4 + 26 * lv), life = 380;
-  ctx.fillStyle = c + ".8)";
+  // grains : une réserve fixe de positions ; chaque grain n'apparaît que si le débit le demande
+  // (tiré au sort à chaque passage au goulot : rien ne clignote quand le débit change)
+  const paths = [new Path2D(), new Path2D(), new Path2D()];
+  for (let i = 0; i < NMAX; i++){
+    const u = now / fall + i / NMAX, cyc = Math.floor(u), p = u - cyc, seed = i * 7919 + cyc * 104729;
+    if (rnd(seed + 3) >= keep) continue;
+    const y = L * p * p, r = (w / 2) * Math.sqrt(rnd(seed)) + S * .004 * rnd(seed + 4) * p * p, an = rnd(seed + 1) * TAU;
+    const x = r * Math.cos(an), z = r * Math.sin(an), qd = at([x, y, z]), tail = Math.max(.4, 2 * L * p * 12 / fall); // traînée = vitesse × 12 ms
+    const qt = at([x, Math.max(0, y - tail), z]);
+    const P = paths[(rnd(seed + 2) * 3) | 0]; P.moveTo(qt[0], qt[1]); P.lineTo(qd[0], qd[1]);
+  }
+  ["1", ".75", ".5"].forEach((al, j) => { ctx.strokeStyle = c + al + ")"; ctx.lineWidth = (.95 - j * .15) * k; ctx.stroke(paths[j]); });
+  // rebonds sur le tas, en nombre proportionnel au débit
+  const B = Math.min(24, Math.round(q * 6)), life = 320;
+  ctx.fillStyle = c + ".85)";
   for (let i = 0; i < B; i++){
-    const u = now / life + i / B, cyc = Math.floor(u), q = u - cyc, seed = i * 2731 + cyc * 7193;
-    const an = rnd(seed) * TAU, d = S * (.01 + .03 * rnd(seed + 1)) * q, hgt = S * (.006 + .014 * rnd(seed + 2));
-    const pt = at([d * Math.cos(an), L - hgt * Math.sin(q * Math.PI) + d * K * .6, d * Math.sin(an)]);
-    ctx.globalAlpha = streamA * (1 - q); ctx.fillRect(pt[0] - .6 * k, pt[1] - .6 * k, 1.2 * k, 1.2 * k);
+    const u = now / life + i / B, cyc = Math.floor(u), t = u - cyc, seed = i * 2731 + cyc * 7193;
+    const an = rnd(seed) * TAU, d = (w / 2 + S * (.006 + .02 * rnd(seed + 1))) * t, hgt = S * (.004 + .01 * rnd(seed + 2));
+    const pt = at([d * Math.cos(an), L - hgt * Math.sin(t * Math.PI) + d * K * .6, d * Math.sin(an)]);
+    ctx.globalAlpha = streamA * (1 - t); ctx.fillRect(pt[0] - .5 * k, pt[1] - .5 * k, k, k);
   }
   ctx.restore();
 }
@@ -436,13 +450,18 @@ function render3d(now){
   }
 }
 
-/* Temps écoulé (0 → 1) → forme du tas, en unités où la base fait 1.
-   La hauteur du sable suit le temps, quelle que soit la largeur du verre.
-   Phase 1 : un cône grossit au centre jusqu'à toucher les parois.
+/* Volume tombé (0 → 1, en part d'une ampoule) → forme du tas, en unités où le fond fait 1.
+   Phase 1 : un cône (pente naturelle du sable, 32°) grossit au centre jusqu'à toucher les parois.
    Phase 2 : le fond se remplit à plat (niveau y) avec le cône posé dessus, jusqu'au goulot. */
-function heap(e){
-  const Hu = G.H / G.S, target = e * Hu;
-  if (target <= K * .5) return { y:0, R:target / K };
-  const y = Math.min(Hu, (target - K / 2) / (1 - K / (2 * Hu)));
+function heap(b){
+  const Hu = G.H / (.925 * G.S), V = Hu / 3, vol = Math.max(0, b) * V;
+  const coneV = r => Math.PI * K * r * r * r / 3;
+  if (vol <= coneV(.5)) return { y:0, R:Math.cbrt(3 * vol / (Math.PI * K)) };
+  let lo = 0, hi = Hu;
+  for (let i = 0; i < 40; i++){
+    const y = (lo + hi) / 2, v = V * (1 - Math.pow(1 - y / Hu, 3)) + coneV(.5 * (1 - y / Hu));
+    if (v < vol) lo = y; else hi = y;
+  }
+  const y = (lo + hi) / 2;
   return { y, R:.5 * (1 - y / Hu) };
 }
