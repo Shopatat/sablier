@@ -75,21 +75,19 @@ function stepTimer(up){
 }
 $("#tLess").addEventListener("click", () => stepTimer(false));
 $("#tMore").addEventListener("click", () => stepTimer(true));
-/* Glisser le doigt vers le haut ou le bas sur le sablier le retourne et relance la session.
-   Le sens de rotation suit le geste : vers le bas à droite, il tourne dans le sens des aiguilles d'une montre. */
-let swipe = null;
-scene.addEventListener("pointerdown", e => {
-  swipe = { x:e.clientX, y:e.clientY, t:performance.now() };
-  try{ scene.setPointerCapture(e.pointerId); }catch(err){} // le geste compte même si le doigt sort du sablier
-});
-scene.addEventListener("pointerup", e => {
-  if (!swipe) return;
-  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y, quick = performance.now() - swipe.t < 900;
-  const r = scene.getBoundingClientRect(), right = swipe.x > r.left + r.width / 2;
-  swipe = null;
-  if (quick && Math.abs(dy) > 50 && Math.abs(dy) > 1.5 * Math.abs(dx)) flipRestart((dy > 0) === right ? 1 : -1);
-});
-scene.addEventListener("pointercancel", () => { swipe = null; });
+/* Interface épurée : pendant que le sable coule, sans toucher l'écran pendant 4 secondes, boutons
+   et textes s'effacent ; il ne reste que le sablier (et le minuteur s'il est affiché).
+   Un toucher n'importe où les fait revenir. Effacés, ils ne réagissent pas : ce premier toucher
+   ne peut pas appuyer sur un bouton par erreur. */
+let calmTimer = 0;
+function stirUI(){
+  app.classList.remove("calm"); clearTimeout(calmTimer);
+  if (st.running && !turning) calmTimer = setTimeout(() => {
+    if (st.running && !turning && !body.classList.contains("open")) app.classList.add("calm");
+  }, 4000);
+}
+document.addEventListener("pointerdown", stirUI, true);
+document.addEventListener("keydown", stirUI, true);
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && body.classList.contains("open")) return closeSheet();
   if (body.classList.contains("open") || e.metaKey || e.ctrlKey || e.altKey) return;

@@ -63,13 +63,6 @@ function turnOver(dir, done){
   if (reduced){ sandFrac = 0; setTimeout(end, 300); }
   else { flipT0 = performance.now(); setTimeout(end, 1560); }
 }
-/* Retourner le sablier d'un glissé : la session en cours repart du début. */
-function flipRestart(dir){
-  if (turning) return;
-  ensureAudio(); // pendant le geste, sinon l'iPhone bloque le son
-  st.running = false; ambient(false);
-  turnOver(dir, () => { st.len = total(st.mode); st.remaining = st.len; saveState(); draw(true); start(); });
-}
 
 /* ---------------- Affichage ---------------- */
 const tsetEl = $("#tset"), tLenEl = $("#tLen"), skipBtn = $("#skip");
@@ -92,6 +85,7 @@ function draw(force){
 function render(){
   document.querySelectorAll(".mode").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === st.mode)));
   app.classList.toggle("idle", !st.running);
+  stirUI(); // l'état a changé : l'interface revient, et s'effacera de nouveau si le sable coule
   const fresh = st.remaining >= sessionLen() && !st.running;
   app.classList.toggle("paused", !st.running && !fresh && !turning);
   toggleBtn.textContent = st.running ? "Pause" : (fresh ? "Démarrer" : "Reprendre");

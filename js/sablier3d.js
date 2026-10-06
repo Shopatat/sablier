@@ -64,10 +64,13 @@ function build(){
   // invisible à l'œil) ; moins si l'appareil n'arrive pas à suivre (voir watchPerf)
   DPR = Math.min(dprCap, window.devicePixelRatio || 1); CW = r.width; CH = r.height;
   cvs.width = Math.max(1, Math.round(CW * DPR)); cvs.height = Math.max(1, Math.round(CH * DPR));
+  restKey = ""; // changer la taille efface le canvas : il faut redessiner même posé
   const S = Math.max(80, Math.min(CH * .36, CW * .5, 260));
   // S : côté de la base du verre, H : hauteur d'une ampoule, T : épaisseur d'un plateau, W : sa largeur
   G = { S, H:S * .8, T:S * .15, W:S * 1.06 };
-  $("#halo").style.setProperty("--halo", (S * 2.6) + "px");
+  // halo dans le décor (plein écran), centré sur le sablier : rien ne le coupe, pas de cadre visible
+  const hs = $("#halo").style;
+  hs.setProperty("--halo", (S * 2.6) + "px"); hs.left = (r.left + CW / 2) + "px"; hs.top = (r.top + CH / 2) + "px";
   MODEL = { glass:[-1, 1].map(sg => ({ out:pyrFaces(sg * G.H, S / 2, "glass"), inn:pyrFaces(sg * G.H, S / 2 * .935, "glass") })) };
   /* Les morceaux du sablier, de haut en bas, triés à chaque image (voir drawOrder).
      y0/y1 : tranche de hauteur occupée. */
@@ -462,16 +465,30 @@ function watchPerf(now){
   perfSlow += ((dt > 40 ? 1 : 0) - perfSlow) * .02;
   if (perfSlow > .5 && dprCap > 1.25){ dprCap = dprCap > 1.5 ? 1.5 : 1.25; perfSlow = 0; build(); }
 }
+/* Sablier immobile à l'arrêt : quand le sable ne coule pas (avant de lancer, en pause), il se pose
+   doucement de trois quarts et on ne le redessine plus du tout (rien ne bouge : zéro dépense).
+   Il se remet à bouger dès qu'on le lance. swayA : ampleur du balancement, de 0 (posé) à 1. */
+const REST = { bob:0, tx:-14 * DEG, ry:-24 * DEG, rz:0, rx:0 };
+let swayA = 0, swayLast = 0, restKey = "";
 function render3d(now){
   if (!CW || !MODEL) return;
   watchPerf(now);
-  const t = now / 1000 + 4, P2 = 2 * Math.PI;
-  const ang = reduced ? { bob:0, tx:-14 * DEG, ry:-24 * DEG, rz:0, rx:0 } : {
-    bob: 7 * Math.sin(t * P2 / 11),
-    tx: (-7.5 + 16.5 * Math.sin(t * P2 / 14.6)) * DEG,
-    ry: 38 * Math.sin(t * P2 / 22) * DEG,
-    rz: 6.5 * Math.sin(t * P2 / 17.8 + 1) * DEG,
-    rx: 4.5 * Math.sin(t * P2 / 12.9 + 2) * DEG
+  const dt = Math.min(100, Math.max(0, now - swayLast)); swayLast = now;
+  const active = !reduced && (st.running || turning || flipT0 || flowOn || now - flowT1 < 700); // 700 ms : la fin du filet finit de tomber
+  swayA += ((active ? 1 : 0) - swayA) * (1 - Math.exp(-dt / 450));
+  if (!active && swayA < .002) swayA = 0;
+  if (swayA === 0){ // posé : on ne redessine que si quelque chose a changé (sable, taille, réglages)
+    const key = [sandFrac, CW, CH, DPR, cfg.sandColor, cfg.flow, st.len, !!strip, !!panel, flowT1].join();
+    if (key === restKey) return;
+    restKey = key;
+  } else restKey = "";
+  const t = now / 1000 + 4, P2 = 2 * Math.PI, A = swayA, mix = (r, v) => r + (v - r) * A;
+  const ang = {
+    bob: mix(REST.bob, 7 * Math.sin(t * P2 / 11)),
+    tx: mix(REST.tx, (-7.5 + 16.5 * Math.sin(t * P2 / 14.6)) * DEG),
+    ry: mix(REST.ry, 38 * Math.sin(t * P2 / 22) * DEG),
+    rz: mix(REST.rz, 6.5 * Math.sin(t * P2 / 17.8 + 1) * DEG),
+    rx: mix(REST.rx, 4.5 * Math.sin(t * P2 / 12.9 + 2) * DEG)
   };
   let flip = 0;
   if (flipT0){
