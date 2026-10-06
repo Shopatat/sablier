@@ -50,9 +50,10 @@ function engrave(c, d, l, x, y, w, h, off, a){
   c.globalAlpha = a; c.drawImage(d, x, y, w, h); c.globalAlpha = 1;
 }
 
-const cvs = $("#hg"), ctx = cvs.getContext("2d"), scene = $("#scene"), app = $("#app");
+const cvs = $("#hg"), ctx0 = cvs.getContext("2d"), scene = $("#scene"), app = $("#app");
+let ctx = ctx0; // contexte où l'on dessine : l'écran, ou l'un des deux calques (voir drawLayers)
 const DEG = Math.PI / 180, K = Math.tan(32 * DEG), CN = 32, PERSP = 1100, TAU = 2 * Math.PI;
-let G = null, MODEL = null, CW = 0, CH = 0, DPR = 1, strip = null, panel = null, grain = null;
+let G = null, MODEL = null, CW = 0, CH = 0, DPR = 1, strip = null, panel = null, grainTile = null;
 let sandFrac = 1, flipT0 = 0, flipDir = 1, dprCap = 2;
 // Filet : il coule depuis flowT0 ; s'il est coupé (pause, fin), il s'est arrêté à flowT1.
 // airMs : durée d'écoulement du sable encore en l'air (il n'est pas encore arrivé dans le tas).
@@ -64,7 +65,7 @@ function build(){
   // invisible à l'œil) ; moins si l'appareil n'arrive pas à suivre (voir watchPerf)
   DPR = Math.min(dprCap, window.devicePixelRatio || 1); CW = r.width; CH = r.height;
   cvs.width = Math.max(1, Math.round(CW * DPR)); cvs.height = Math.max(1, Math.round(CH * DPR));
-  restKey = ""; // changer la taille efface le canvas : il faut redessiner même posé
+  makeLayers(); // changer la taille efface le canvas : calques refaits, image redessinée
   const S = Math.max(80, Math.min(CH * .36, CW * .5, 260));
   // S : côté de la base du verre, H : hauteur d'une ampoule, T : épaisseur d'un plateau, W : sa largeur
   G = { S, H:S * .8, T:S * .15, W:S * 1.06 };
@@ -109,7 +110,7 @@ function makeGrain(){
     else if (r < .16){ d[i] = d[i + 1] = d[i + 2] = 255; d[i + 3] = 90 + Math.random() * 110; }
   }
   g.putImageData(img, 0, 0);
-  grain = ctx.createPattern(c, "repeat");
+  grainTile = c;
 }
 makeGrain();
 
@@ -238,8 +239,11 @@ function drawSolid(F){ const vis = []; for (const f of F){ prep(f); if (f.front)
 
 /* Grain du sable : la texture est « collée » sur chaque face (elle suit sa position et son
    inclinaison), pour qu'elle ne glisse pas sur le sable quand le sablier tourne. */
+const grainPats = new WeakMap();
 function grainOn(F){
-  if (!grain || !F.length) return;
+  if (!grainTile || !F.length) return;
+  let grain = grainPats.get(ctx); // un motif par canvas (écran, calques)
+  if (!grain){ grain = ctx.createPattern(grainTile, "repeat"); grainPats.set(ctx, grain); }
   ctx.save(); ctx.globalAlpha = .32;
   for (const f of F){
     const p0 = f.pts[0], U = nrm(sub(f.pts[1], p0)), V = cross(f.n, U), L = 8;
@@ -427,7 +431,7 @@ function drawChamber(sg, now){
   else {
     const hp = heapParts(sandFrac), above = hp.cap ? prep(hp.cap).front : true;
     if (above){ drawSand(hp.fr); drawSand(hp.cone, true); } else { drawSand(hp.cone, true); drawSand(hp.fr); }
-    drawStream(hp.apex, now);
+    streamApex = hp.apex; ctx = layB; // le filet se dessine ici, entre les deux calques (voir render3d)
   }
   drawGlass(gl, true);
 }
@@ -465,57 +469,77 @@ function watchPerf(now){
   perfSlow += ((dt > 40 ? 1 : 0) - perfSlow) * .02;
   if (perfSlow > .5 && dprCap > 1.25){ dprCap = dprCap > 1.5 ? 1.5 : 1.25; perfSlow = 0; build(); }
 }
-/* Sablier immobile à l'arrêt : quand le sable ne coule pas (avant de lancer, en pause), il se pose
-   doucement de trois quarts et on ne le redessine plus du tout (rien ne bouge : zéro dépense).
-   Il se remet à bouger dès qu'on le lance. swayA : ampleur du balancement, de 0 (posé) à 1. */
-const REST = { bob:0, tx:-14 * DEG, ry:-24 * DEG, rz:0, rx:0 };
-let swayA = 0, swayLast = 0, restKey = "";
+/* Angle de vue : le sablier ne bouge pas tout seul, on le fait tourner du doigt (voir interface.js).
+   tx : inclinaison (négatif : vu d'en haut), ry : rotation autour de l'axe. spin : élan après un lancer (rad/ms). */
+const VIEW0 = { tx:-14 * DEG, ry:-24 * DEG }, TX_MIN = -50 * DEG, TX_MAX = 20 * DEG;
+const view = Object.assign({}, VIEW0);
+(() => { const v = store.get("sablier.view", null);
+  if (v && isFinite(v.tx) && isFinite(v.ry)){ view.tx = Math.max(TX_MIN, Math.min(TX_MAX, v.tx)); view.ry = v.ry; } })();
+let spin = 0, spinLast = 0;
+const saveView = () => store.set("sablier.view", { tx:view.tx, ry:view.ry % TAU });
+function stepView(now){
+  const dt = Math.min(50, Math.max(0, now - spinLast)); spinLast = now;
+  if (!spin) return;
+  view.ry += spin * dt; spin *= Math.exp(-dt / 420);
+  if (Math.abs(spin) < 2e-5){ spin = 0; saveView(); }
+}
+
+/* Pour dépenser le moins possible, l'image est faite en deux calques : tout ce qui est derrière le
+   filet (layA) et tout ce qui est devant (layB, la face avant du verre du bas, etc.).
+   Ils ne sont refaits que si quelque chose a bougé d'au moins 0,2 pixel (angle, niveau du sable,
+   tas) : environ une fois par seconde pendant une session. À chaque image, on ne fait que poser
+   les deux calques et dessiner le filet entre les deux. Sablier à l'arrêt : plus rien à faire. */
+let layA = null, layB = null, layKey = "", streamApex = 0, hadStream = false;
+function makeLayers(){
+  [layA, layB] = [0, 0].map(() => { const c = document.createElement("canvas"); c.width = cvs.width; c.height = cvs.height; return c.getContext("2d"); });
+  layKey = "";
+}
+function drawLayers(now, eyeM){
+  for (const c of [layA, layB]){ c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cvs.width, cvs.height); c.setTransform(DPR, 0, 0, DPR, 0, 0); }
+  ctx = layA; streamApex = G.H; // drawChamber passe sur layB une fois le tas dessiné
+  let chambers = 0;
+  for (const o of drawOrder(eyeM)){
+    if (o.chamber){ drawChamber(o.chamber, now); if (++chambers === 2) neckGlint(); } // reflet au goulot
+    else o.draw();
+  }
+  ctx = ctx0;
+}
 function render3d(now){
-  if (!CW || !MODEL) return;
-  watchPerf(now);
-  const dt = Math.min(100, Math.max(0, now - swayLast)); swayLast = now;
-  const active = !reduced && (st.running || turning || flipT0 || flowOn || now - flowT1 < 700); // 700 ms : la fin du filet finit de tomber
-  swayA += ((active ? 1 : 0) - swayA) * (1 - Math.exp(-dt / 450));
-  if (!active && swayA < .002) swayA = 0;
-  if (swayA === 0){ // posé : on ne redessine que si quelque chose a changé (sable, taille, réglages)
-    const key = [sandFrac, CW, CH, DPR, cfg.sandColor, cfg.flow, st.len, !!strip, !!panel, flowT1].join();
-    if (key === restKey) return;
-    restKey = key;
-  } else restKey = "";
-  const t = now / 1000 + 4, P2 = 2 * Math.PI, A = swayA, mix = (r, v) => r + (v - r) * A;
-  const ang = {
-    bob: mix(REST.bob, 7 * Math.sin(t * P2 / 11)),
-    tx: mix(REST.tx, (-7.5 + 16.5 * Math.sin(t * P2 / 14.6)) * DEG),
-    ry: mix(REST.ry, 38 * Math.sin(t * P2 / 22) * DEG),
-    rz: mix(REST.rz, 6.5 * Math.sin(t * P2 / 17.8 + 1) * DEG),
-    rx: mix(REST.rx, 4.5 * Math.sin(t * P2 / 12.9 + 2) * DEG)
-  };
+  if (!CW || !MODEL || !layA) return;
+  watchPerf(now); stepView(now);
   let flip = 0;
   if (flipT0){
     const u = Math.min(1, (now - flipT0) / 1500);
     flip = flipDir * Math.PI * (u < .5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3) / 2);
     if (u >= .5) sandFrac = 0; // à l'horizontale, le sable passe dans l'ampoule qui finira en haut
   }
-  const M = p => rX(rY(rZ(rX(rZ(p, flip), ang.rx), ang.rz), ang.ry), ang.tx);
-  const ex = M([1, 0, 0]), ey = M([0, 1, 0]), ez = M([0, 0, 1]);
-  T = p => [ex[0]*p[0] + ey[0]*p[1] + ez[0]*p[2], ex[1]*p[0] + ey[1]*p[1] + ez[1]*p[2], ex[2]*p[0] + ey[2]*p[1] + ez[2]*p[2]];
-  const vx = CW / 2, vy = CH * .42, ox = CW / 2, oy = CH / 2 + ang.bob;
-  eye = [vx - ox, vy - oy, PERSP];
-  proj = p => { const k = PERSP / (PERSP - p[2]); return [vx + (ox + p[0] - vx) * k, vy + (oy + p[1] - vy) * k]; };
-
   const want = st.running && !turning && sandFrac > 0;
   if (want && !flowOn){ flowOn = true; flowT0 = now; }
   else if (!want && flowOn){ flowOn = false; flowT1 = now; }
   if (turning) flowT1 = flowT0 = -1e9; // on retourne le sablier : plus de filet
   airMs = flowOn ? Math.min(now - flowT0, FALL) : Math.max(0, Math.min(FALL - (now - flowT1), flowT1 - flowT0));
 
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, CW, CH);
-  const eyeM = [dot(ex, eye), dot(ey, eye), dot(ez, eye)]; // l'œil dans le repère du sablier
-  let chambers = 0;
-  for (const o of drawOrder(eyeM)){
-    if (o.chamber){ drawChamber(o.chamber, now); if (++chambers === 2) neckGlint(); } // reflet au goulot
-    else o.draw();
-  }
+  // Ce que montrent les calques, au cinquième de pixel près : s'il n'a pas changé, on ne les refait pas.
+  const Sb = .925 * G.S, shp = heap(1 - sandLeft(Math.min(1, sandFrac + airMs / sessionLen())));
+  const q5 = v => Math.round(v * 5);
+  const key = [view.tx.toFixed(4), view.ry.toFixed(4), flip.toFixed(4), q5(topLevel(sandFrac) * G.H), q5(shp.y * Sb), q5(shp.R * Sb),
+    CW, CH, DPR, cfg.sandColor, cfg.flow, !!strip, !!panel].join();
+  const streaming = flowOn || now - flowT1 < 700; // 700 ms : la fin du filet finit de tomber
+  if (key === layKey && !streaming && !hadStream) return; // rien n'a bougé : on garde l'image
+  hadStream = streaming;
+
+  const M = p => rX(rY(rZ(p, flip), view.ry), view.tx);
+  const ex = M([1, 0, 0]), ey = M([0, 1, 0]), ez = M([0, 0, 1]);
+  T = p => [ex[0]*p[0] + ey[0]*p[1] + ez[0]*p[2], ex[1]*p[0] + ey[1]*p[1] + ez[1]*p[2], ex[2]*p[0] + ey[2]*p[1] + ez[2]*p[2]];
+  const vx = CW / 2, vy = CH * .42, ox = CW / 2, oy = CH / 2;
+  eye = [vx - ox, vy - oy, PERSP];
+  proj = p => { const k = PERSP / (PERSP - p[2]); return [vx + (ox + p[0] - vx) * k, vy + (oy + p[1] - vy) * k]; };
+  if (key !== layKey){ layKey = key; drawLayers(now, [dot(ex, eye), dot(ey, eye), dot(ez, eye)]); } // l'œil dans le repère du sablier
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cvs.width, cvs.height);
+  ctx.drawImage(layA.canvas, 0, 0);
+  if (streaming){ ctx.setTransform(DPR, 0, 0, DPR, 0, 0); drawStream(streamApex, now); ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  ctx.drawImage(layB.canvas, 0, 0);
 }
 
 /* Volume tombé (0 → 1, en part d'une ampoule) → forme du tas, en unités où le fond fait 1.

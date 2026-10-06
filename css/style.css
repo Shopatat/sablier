@@ -6,7 +6,6 @@
   --tomb:#140d08; --tomb-2:#2a1a0e; --wall:#21150c;
   --gold:#c9a24e; --gold-hi:#f3d993; --gold-lo:#6e4f1c; --gold-ink:#4a3210;
   --glass:205,212,222; --sand:#e4c070; --sand-dk:#a77c35; --sand-hi:#f6dc9a; --grain-rgb:240,205,125;
-  --torch:#ff9b3d;
   --text:#f0e3c6; --muted:#ad9876; --line:rgba(201,162,78,.28);
   --font-display:"Marcellus","Cormorant Garamond","Trajan Pro",Georgia,serif;
   --font-ui:"Jost","Avenir Next","Segoe UI",system-ui,sans-serif;
@@ -46,14 +45,6 @@ body{
     repeating-linear-gradient(90deg, rgba(0,0,0,.4) 0 2px, transparent 2px 140px);
 }
 .blocks.offset{ opacity:.08; transform:translate(70px,43px); }
-.torch{ position:absolute; width:70vmax; height:70vmax; border-radius:50%;
-  background:radial-gradient(circle, rgba(255,170,80,.55) 0%, rgba(255,130,40,.22) 22%, rgba(180,70,20,.08) 45%, transparent 66%);
-  transform:translate(-50%,-50%); will-change:opacity;
-}
-.torch.t1{ left:8%; top:14%; }
-.torch.t2{ left:92%; top:22%; }
-.torch .core{ position:absolute; left:50%; top:50%; width:9vmin; height:9vmin; transform:translate(-50%,-50%); border-radius:50%;
-  background:radial-gradient(circle, #fff3c4 0%, #ffbe5c 30%, rgba(255,140,40,.4) 50%, rgba(255,140,40,0) 72%); }
 #dust{ position:absolute; inset:0; width:100%; height:100%; }
 .vignette{ position:absolute; inset:0; background:radial-gradient(130% 90% at 50% 50%, transparent 45%, rgba(0,0,0,.75) 100%); }
 
@@ -79,7 +70,7 @@ body{
 button:focus-visible, input:focus-visible{ outline:2px solid var(--gold-hi); outline-offset:3px; }
 
 /* ---------- Le sablier ---------- */
-.scene{ position:relative; flex:1; width:100%; min-height:0; overflow:hidden; }
+.scene{ position:relative; flex:1; width:100%; min-height:0; overflow:hidden; touch-action:none; cursor:grab; } /* le doigt fait tourner le sablier, pas la page */
 .halo{ position:absolute; left:50%; top:45%; width:var(--halo,420px); height:var(--halo,420px); transform:translate(-50%,-50%);
   border-radius:50%; background:radial-gradient(circle, rgba(255,235,200,.16), rgba(255,160,70,.07) 42%, transparent 70%); pointer-events:none; }
 #hg{ position:absolute; inset:0; width:100%; height:100%; display:block; }

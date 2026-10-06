@@ -86,8 +86,34 @@ function stirUI(){
     if (st.running && !turning && !body.classList.contains("open")) app.classList.add("calm");
   }, 4000);
 }
-document.addEventListener("pointerdown", stirUI, true);
+// toucher le sablier sert à le faire tourner : seul un simple toucher (sans glisser) fait revenir l'interface
+document.addEventListener("pointerdown", e => { if (!scene.contains(e.target)) stirUI(); }, true);
 document.addEventListener("keydown", stirUI, true);
+/* Faire tourner le sablier du doigt : glisser à gauche ou à droite le fait pivoter, vers le haut ou
+   le bas l'incline. Lâché en mouvement, il continue un peu sur sa lancée, puis reste où on l'a laissé. */
+let drag = null;
+scene.addEventListener("pointerdown", e => {
+  const t = performance.now();
+  drag = { x:e.clientX, y:e.clientY, tx:view.tx, ry:view.ry, lx:e.clientX, lt:t, v:0, moved:false }; spin = 0;
+  try{ scene.setPointerCapture(e.pointerId); }catch(err){} // on suit le doigt même s'il sort du sablier
+});
+scene.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y, t = performance.now();
+  if (!drag.moved && Math.hypot(dx, dy) < 6) return; // petit tremblement du doigt : c'est encore un simple toucher
+  drag.moved = true;
+  view.ry = drag.ry + dx * .45 * DEG;
+  view.tx = Math.max(TX_MIN, Math.min(TX_MAX, drag.tx - dy * .35 * DEG));
+  if (t > drag.lt){ drag.v = .6 * drag.v + .4 * (e.clientX - drag.lx) * .45 * DEG / (t - drag.lt); drag.lx = e.clientX; drag.lt = t; }
+});
+function endDrag(){
+  if (!drag) return;
+  if (!drag.moved) stirUI();
+  else { if (!reduced && performance.now() - drag.lt < 80) spin = Math.max(-.012, Math.min(.012, drag.v)); saveView(); }
+  drag = null;
+}
+scene.addEventListener("pointerup", endDrag);
+scene.addEventListener("pointercancel", endDrag);
 document.addEventListener("keydown", e => {
   if (e.key === "Escape" && body.classList.contains("open")) return closeSheet();
   if (body.classList.contains("open") || e.metaKey || e.ctrlKey || e.altKey) return;

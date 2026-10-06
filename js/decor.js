@@ -1,8 +1,7 @@
-// Décor animé : torches et poussière
+// Décor animé : poussière qui flotte
 "use strict";
 
-/* ---------------- Torches et poussière ---------------- */
-const torches = [$("#t1"), $("#t2")].map((el, i) => ({ el, v:.8, seed:i * 13.7 }));
+/* ---------------- Poussière ---------------- */
 const dust = $("#dust"), dctx = dust.getContext("2d");
 let motes = [], DW = 0, DH = 0, dpr = 1;
 function sizeDust(){
@@ -11,17 +10,12 @@ function sizeDust(){
   const n = reduced ? 0 : Math.round(Math.min(90, DW * DH / 9000));
   motes = Array.from({ length:n }, () => ({ x:Math.random()*DW, y:Math.random()*DH, r:.4 + Math.random()*1.6, vx:(Math.random()-.5)*.12, vy:-.03 - Math.random()*.14, p:Math.random()*6.28 }));
 }
-/* Appelé par la boucle principale. Les torches vacillent 20 fois par seconde (assez pour l'œil)
-   et la poussière bouge 30 fois par seconde : deux fois moins de travail pour le téléphone. */
-let ambT = 0, ambN = 0;
+/* Appelé par la boucle principale. La poussière bouge 30 fois par seconde : assez pour l'œil,
+   deux fois moins de travail pour le téléphone. */
+let ambT = 0;
 function ambient2d(t){
   if (t - ambT < 32) return;
   const k = Math.min(3, (t - ambT) / 16.7); ambT = t;
-  if (++ambN % 3 !== 0) torches.forEach(T => {
-    const n = Math.sin(t/170 + T.seed) * .5 + Math.sin(t/63 + T.seed*2) * .3 + (Math.random() - .5) * .35;
-    T.v += ((.82 + n * .14) - T.v) * .3;
-    T.el.style.opacity = T.v.toFixed(2);
-  });
   dctx.clearRect(0, 0, DW, DH);
   for (const m of motes){
     m.x += (m.vx + Math.sin(t/2400 + m.p) * .08) * k; m.y += m.vy * k; m.p += .01 * k;
